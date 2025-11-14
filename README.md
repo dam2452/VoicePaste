@@ -151,10 +151,12 @@ python main.py --keep-model-loaded
 
 ### 🧠 Smart Memory Management
 
-Application uses intelligent memory management by default:
-- ⚡ Whisper model loads **on-demand** (first transcription)
-- 💤 Model auto-unloads after **30 minutes** of inactivity
-- 📉 Minimizes GPU memory usage when idle
+Application uses intelligent 3-tier memory management by default:
+- ⚡ **Preloading**: Model starts loading to VRAM when you start recording - ready by the time you finish speaking
+- 🎮 **VRAM (GPU)**: Model actively used on CUDA for transcription
+- 💾 **RAM (CPU)**: After **1 hour** of inactivity, model moves from VRAM to RAM
+- 💤 **Disk**: After **5 hours** of inactivity, model fully unloaded from memory
+- 🔄 **Auto-recovery**: Model automatically moves back to GPU when needed
 
 Use `--keep-model-loaded` flag if:
 - 🔁 You use the app frequently

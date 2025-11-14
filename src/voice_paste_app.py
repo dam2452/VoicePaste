@@ -57,6 +57,7 @@ class VoicePasteApp:
                 print("Started recording...")
                 self.tray_icon.update_status("recording")
                 self.audio_recorder.start_recording()
+                self.transcriber.preload_for_recording()
             except RuntimeError as e:
                 print(f"Error starting recording: {e}")
                 self.tray_icon.update_status("idle")

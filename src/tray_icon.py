@@ -11,23 +11,95 @@ class TrayIcon:
         self.status = "idle"
         self.thread = None
 
-    def create_icon_image(self, color: str = "green") -> Image.Image:
-        width = 64
-        height = 64
-        image = Image.new('RGB', (width, height), color='white')
+    def create_icon_image(self, status: str = "idle") -> Image.Image:
+        size = 512
+        image = Image.new('RGBA', (size, size), color=(255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
 
-        if color == "green":
-            fill_color = (34, 139, 34)
-        elif color == "red":
-            fill_color = (220, 20, 60)
-        elif color == "orange":
-            fill_color = (255, 140, 0)
-        else:
-            fill_color = (128, 128, 128)
+        if status == "idle":
+            self._draw_microphone(draw, size, (76, 175, 80))
+        elif status == "recording":
+            self._draw_microphone(draw, size, (244, 67, 54))
+            self._draw_sound_waves(draw, size, (244, 67, 54))
+        elif status == "processing":
+            self._draw_microphone(draw, size, (33, 150, 243))
+            self._draw_clipboard(draw, size, (33, 150, 243))
 
-        draw.ellipse([8, 8, 56, 56], fill=fill_color, outline='black')
         return image
+
+    def _draw_microphone(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+        cx, cy = size // 2, size // 2
+
+        mic_width = int(size * 0.50)
+        mic_height = int(size * 0.58)
+        top_y = cy - mic_height // 2 - int(size * 0.04)
+
+        draw.rounded_rectangle(
+            [cx - mic_width // 2, top_y, cx + mic_width // 2, top_y + mic_height],
+            radius=mic_width // 2,
+            fill=color
+        )
+
+        body_y = top_y + mic_height
+        arc_width = int(size * 0.08)
+        draw.arc(
+            [cx - int(mic_width * 1.1), body_y - int(size * 0.02),
+             cx + int(mic_width * 1.1), body_y + int(mic_height * 0.35)],
+            start=0, end=180, fill=color, width=arc_width
+        )
+
+        stand_bottom = cy + mic_height // 2 + int(size * 0.12)
+        stand_width = int(size * 0.06)
+        draw.line([cx, body_y + int(mic_height * 0.15), cx, stand_bottom],
+                 fill=color, width=stand_width)
+        draw.line([cx - int(mic_width * 0.6), stand_bottom,
+                  cx + int(mic_width * 0.6), stand_bottom],
+                 fill=color, width=stand_width)
+
+    def _draw_sound_waves(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+        cx, cy = size // 2, size // 2
+
+        wave_offset = int(size * 0.38)
+        wave_width = int(size * 0.05)
+
+        wave_sizes = [
+            (int(size * 0.06), int(size * 0.12)),
+            (int(size * 0.08), int(size * 0.18)),
+            (int(size * 0.06), int(size * 0.12))
+        ]
+
+        for i, (w, h) in enumerate(wave_sizes):
+            x_left = cx - wave_offset - i * int(size * 0.05)
+            x_right = cx + wave_offset + i * int(size * 0.05)
+
+            draw.arc([x_left - w, cy - h, x_left + w, cy + h],
+                    start=270, end=90, fill=color, width=wave_width)
+            draw.arc([x_right - w, cy - h, x_right + w, cy + h],
+                    start=90, end=270, fill=color, width=wave_width)
+
+    def _draw_clipboard(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+        clip_size = int(size * 0.36)
+        clip_x = size - clip_size - int(size * 0.04)
+        clip_y = size - clip_size - int(size * 0.04)
+        border_width = int(size * 0.05)
+        radius = int(size * 0.03)
+
+        draw.rounded_rectangle(
+            [clip_x, clip_y, clip_x + clip_size, clip_y + clip_size],
+            radius=radius,
+            outline=color,
+            width=border_width
+        )
+
+        line_y1 = clip_y + clip_size // 3
+        line_y2 = clip_y + 2 * clip_size // 3
+        margin = int(size * 0.05)
+        line_width = int(size * 0.04)
+
+        draw.line([clip_x + margin, line_y1, clip_x + clip_size - margin, line_y1],
+                 fill=color, width=line_width)
+        draw.line([clip_x + margin, line_y2, clip_x + clip_size - margin, line_y2],
+                 fill=color, width=line_width)
 
     def start(self):
         menu = pystray.Menu(
@@ -39,7 +111,7 @@ class TrayIcon:
 
         self.icon = pystray.Icon(
             "VoicePaste",
-            self.create_icon_image("green"),
+            self.create_icon_image("idle"),
             "VoicePaste - Ready",
             menu
         )
@@ -50,13 +122,13 @@ class TrayIcon:
         self.status = status
         if self.icon:
             if status == "recording":
-                self.icon.icon = self.create_icon_image("red")
+                self.icon.icon = self.create_icon_image("recording")
                 self.icon.title = "VoicePaste - Recording"
             elif status == "processing":
-                self.icon.icon = self.create_icon_image("orange")
+                self.icon.icon = self.create_icon_image("processing")
                 self.icon.title = "VoicePaste - Processing"
             else:
-                self.icon.icon = self.create_icon_image("green")
+                self.icon.icon = self.create_icon_image("idle")
                 self.icon.title = "VoicePaste - Ready"
 
     def _get_status(self):
