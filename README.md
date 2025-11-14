@@ -221,28 +221,17 @@ Speak longer (minimum 1 second) or check if microphone is working.
 
 FFmpeg is a system dependency (not a Python package) and must be installed via system package manager.
 
-**Windows (winget):**
+**Windows:**
 ```bash
 winget install ffmpeg
 ```
 
-**Windows (Chocolatey):**
+**Linux:**
 ```bash
-choco install ffmpeg
+sudo apt update && sudo apt install ffmpeg
 ```
 
-**Linux (Debian/Ubuntu):**
-```bash
-sudo apt-get update
-sudo apt-get install ffmpeg
-```
-
-**Linux (Fedora/RHEL):**
-```bash
-sudo dnf install ffmpeg
-```
-
-**macOS (Homebrew):**
+**macOS:**
 ```bash
 brew install ffmpeg
 ```
