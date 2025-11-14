@@ -6,11 +6,13 @@ Voice-to-text application with real-time transcription and automatic clipboard i
 
 ## ✨ Features
 
-- 🎯 **One-key activation** - Simple Shift+V hotkey to start/stop recording
+- 🎯 **Voice recording** - Simple Shift+V hotkey to start/stop recording
+- 📺 **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
 - ⚡ **Real-time transcription** - Using OpenAI Whisper Turbo model
 - 🚀 **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
 - 📋 **Automatic clipboard** - Transcribed text instantly available for pasting
-- 🔔 **System tray integration** - Runs quietly in background
+- 💾 **Smart caching** - YouTube transcriptions cached for 1 hour (avoid re-downloading)
+- 🔔 **System tray integration** - Runs quietly in background with functional menu
 - 🧠 **Smart memory management** - Auto-loads/unloads model to save GPU memory
 - 🎧 **Virtual audio support** - Works with NVIDIA Broadcast, VB-Cable, Krisp, etc.
 - 🌍 **Cross-platform** - Windows, Linux, macOS
@@ -49,11 +51,14 @@ python main.py
 
 Press `Shift+V` → 🎤 speak → press `Shift+V` again → ✅ text ready in clipboard!
 
+**Or copy YouTube URL and press `Shift+Y` → 📺 video transcribed → ✅ text in clipboard!**
+
 ## 📋 Requirements
 
 - 🐍 **Python 3.12** (not 3.13 - PyTorch CUDA wheels not yet available for 3.13)
 - 🎮 NVIDIA GPU with CUDA (optional - runs on CPU without GPU)
-- 🎤 Microphone
+- 🎤 Microphone (for voice recording)
+- 🎬 **FFmpeg** (for YouTube transcription) - [Download](https://ffmpeg.org/download.html)
 
 ## 📦 Installation
 
@@ -133,9 +138,11 @@ python main.py --keep-model-loaded
 
 ### 🚪 Exit
 - Press `Ctrl+C` in terminal
-- Right-click tray icon → Quit
+- Right-click tray icon → Exit
 
 ## 🔄 How it works
+
+### 🎤 Voice Recording
 
 1. 🚀 Start application - tray icon appears in system tray
 2. ⌨️ Press `Shift+V` - recording starts (icon turns red)
@@ -145,7 +152,16 @@ python main.py --keep-model-loaded
 6. 📋 Text automatically copied to clipboard
 7. ✨ Paste anywhere with `Ctrl+V`
 
-**Icon colors:** 🟢 ready → 🔴 recording → 🟠 processing → 🟢 ready
+### 📺 YouTube Transcription
+
+1. 📋 Copy YouTube video URL to clipboard
+2. ⌨️ Press `Shift+Y` - downloading starts (icon turns purple)
+3. ⏳ Wait for download and transcription (icon shows download arrow)
+4. 📝 Transcription automatically copied to clipboard
+5. ✨ Paste anywhere with `Ctrl+V`
+6. 💾 Transcription cached for 1 hour - next use instant!
+
+**Icon colors:** 🟢 ready → 🔴 recording → 🟣 downloading → 🔵 processing → 🟢 ready
 
 ## 🎛️ Advanced Features
 
@@ -200,6 +216,29 @@ python main.py --device <ID>
 
 ### ⏱️ "Recording too short, ignoring..."
 Speak longer (minimum 1 second) or check if microphone is working.
+
+### 🎬 FFmpeg not found (for YouTube transcription)
+
+**Windows:**
+1. Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html) or [gyan.dev](https://www.gyan.dev/ffmpeg/builds/)
+2. Extract to `C:\ffmpeg`
+3. Add `C:\ffmpeg\bin` to System PATH
+4. Restart terminal
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt-get install ffmpeg
+```
+
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install ffmpeg
+```
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
 
 ### 📦 PyAudio installation fails
 **Windows:** Download wheel from [Unofficial Windows Binaries](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio)

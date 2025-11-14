@@ -1,6 +1,7 @@
 import threading
 import sys
-from typing import Optional
+import time
+from typing import Optional, Dict, Tuple
 import numpy as np
 
 from src.audio_recorder import AudioRecorder
@@ -8,6 +9,7 @@ from src.transcriber import Transcriber
 from src.clipboard_manager import ClipboardManager
 from src.hotkey_handler import HotkeyHandler
 from src.tray_icon import TrayIcon
+from src.youtube_downloader import YouTubeDownloader
 
 
 class VoicePasteApp:
@@ -15,11 +17,19 @@ class VoicePasteApp:
         self.audio_recorder = AudioRecorder(device_id=device_id)
         self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded)
         self.clipboard_manager = ClipboardManager()
-        self.hotkey_handler = HotkeyHandler(callback=self.on_hotkey)
+        self.youtube_downloader = YouTubeDownloader()
+        self.hotkey_handler = HotkeyHandler(
+            voice_callback=self.on_voice_hotkey,
+            youtube_callback=self.on_youtube_hotkey
+        )
         self.is_running = True
         self.processing_lock = threading.Lock()
         self.shutdown_event = threading.Event()
         self.is_recording = False
+
+        self.transcription_cache: Dict[str, Tuple[str, float]] = {}
+        self.cache_ttl = 3600
+        self.cache_cleanup_timer: Optional[threading.Timer] = None
 
         self.tray_icon = TrayIcon(
             on_quit=self.quit,
@@ -38,7 +48,8 @@ class VoicePasteApp:
             print("Warning: No audio input device found!")
             print("Please check your microphone connection.")
 
-        print("Press Shift+V to start recording...")
+        print("Press Shift+V to start/stop recording...")
+        print("Press Shift+Y to transcribe YouTube video from clipboard...")
         print("Press Ctrl+C to quit")
 
         print("Starting hotkey listener...")
@@ -54,11 +65,66 @@ class VoicePasteApp:
             print("\nReceived Ctrl+C, shutting down...")
             self.quit()
 
-    def on_hotkey(self, is_pressed: bool):
+    def on_voice_hotkey(self, is_pressed: bool):
         if is_pressed:
             self._start_recording()
         else:
             self._stop_recording()
+
+    def on_youtube_hotkey(self):
+        def process_youtube():
+            try:
+                url = self.clipboard_manager.get_from_clipboard()
+                if not url or not isinstance(url, str):
+                    print("No URL in clipboard")
+                    return
+
+                url = url.strip()
+                if not self.youtube_downloader.is_youtube_url(url):
+                    print(f"Not a YouTube URL: {url}")
+                    return
+
+                if url in self.transcription_cache:
+                    cached_text, timestamp = self.transcription_cache[url]
+                    if time.time() - timestamp < self.cache_ttl:
+                        print(f"Using cached transcription for: {url}")
+                        self.clipboard_manager.copy_to_clipboard(cached_text)
+                        print("Cached transcription copied to clipboard!")
+                        return
+                    else:
+                        del self.transcription_cache[url]
+
+                print(f"Processing YouTube URL: {url}")
+                self.tray_icon.update_status("downloading")
+
+                result = self.youtube_downloader.download_audio(url)
+                if not result:
+                    print("Failed to download audio")
+                    self.tray_icon.update_status("idle")
+                    return
+
+                audio_data, title = result
+                print(f"Transcribing: {title}")
+                self.tray_icon.update_status("processing")
+
+                text = self.transcriber.transcribe(audio_data)
+                if text:
+                    print(f"Transcription ({len(text)} chars): {text[:100]}...")
+                    self.clipboard_manager.copy_to_clipboard(text)
+                    print("Transcription copied to clipboard!")
+
+                    self.transcription_cache[url] = (text, time.time())
+                    self._schedule_cache_cleanup()
+                else:
+                    print("No transcription result")
+
+                self.tray_icon.update_status("idle")
+
+            except Exception as e:
+                print(f"YouTube transcription error: {e}")
+                self.tray_icon.update_status("idle")
+
+        threading.Thread(target=process_youtube, daemon=True).start()
 
     def _start_recording(self):
         with self.processing_lock:
@@ -128,11 +194,37 @@ class VoicePasteApp:
         else:
             return "Unknown"
 
+    def _schedule_cache_cleanup(self):
+        if self.cache_cleanup_timer:
+            self.cache_cleanup_timer.cancel()
+
+        self.cache_cleanup_timer = threading.Timer(self.cache_ttl, self._cleanup_cache)
+        self.cache_cleanup_timer.daemon = True
+        self.cache_cleanup_timer.start()
+
+    def _cleanup_cache(self):
+        current_time = time.time()
+        urls_to_remove = []
+
+        for url, (_, timestamp) in self.transcription_cache.items():
+            if current_time - timestamp >= self.cache_ttl:
+                urls_to_remove.append(url)
+
+        for url in urls_to_remove:
+            del self.transcription_cache[url]
+            print(f"Removed cached transcription for: {url}")
+
+        if self.transcription_cache:
+            self._schedule_cache_cleanup()
+
     def quit(self):
         print("Shutting down...")
         self.is_running = False
+        if self.cache_cleanup_timer:
+            self.cache_cleanup_timer.cancel()
         self.hotkey_handler.stop()
         self.transcriber.shutdown()
+        self.youtube_downloader.cleanup()
         self.tray_icon.stop()
         self.shutdown_event.set()
         sys.exit(0)

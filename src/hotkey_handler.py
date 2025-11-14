@@ -4,12 +4,14 @@ from typing import Callable
 
 
 class HotkeyHandler:
-    def __init__(self, callback: Callable):
-        self.callback = callback
+    def __init__(self, voice_callback: Callable, youtube_callback: Callable = None):
+        self.voice_callback = voice_callback
+        self.youtube_callback = youtube_callback
         self.is_recording = False
         self.listener = None
         self.current_keys = set()
-        self.hotkey_triggered = False
+        self.voice_hotkey_triggered = False
+        self.youtube_hotkey_triggered = False
 
     def start(self):
         self.listener = keyboard.Listener(
@@ -25,10 +27,16 @@ class HotkeyHandler:
     def _on_press(self, key):
         try:
             self.current_keys.add(key)
-            if self._is_hotkey_pressed() and not self.hotkey_triggered:
-                self.hotkey_triggered = True
+
+            if self._is_voice_hotkey_pressed() and not self.voice_hotkey_triggered:
+                self.voice_hotkey_triggered = True
                 self.is_recording = not self.is_recording
-                threading.Thread(target=self.callback, args=(self.is_recording,), daemon=True).start()
+                threading.Thread(target=self.voice_callback, args=(self.is_recording,), daemon=True).start()
+
+            if self._is_youtube_hotkey_pressed() and not self.youtube_hotkey_triggered:
+                self.youtube_hotkey_triggered = True
+                if self.youtube_callback:
+                    threading.Thread(target=self.youtube_callback, daemon=True).start()
         except Exception:
             pass
 
@@ -36,12 +44,14 @@ class HotkeyHandler:
         try:
             if key in self.current_keys:
                 self.current_keys.remove(key)
-            if not self._is_hotkey_pressed():
-                self.hotkey_triggered = False
+            if not self._is_voice_hotkey_pressed():
+                self.voice_hotkey_triggered = False
+            if not self._is_youtube_hotkey_pressed():
+                self.youtube_hotkey_triggered = False
         except Exception:
             pass
 
-    def _is_hotkey_pressed(self):
+    def _is_voice_hotkey_pressed(self):
         has_shift = any(
             k == keyboard.Key.shift or k == keyboard.Key.shift_r
             for k in self.current_keys
@@ -51,3 +61,14 @@ class HotkeyHandler:
             for k in self.current_keys
         )
         return has_shift and has_v
+
+    def _is_youtube_hotkey_pressed(self):
+        has_shift = any(
+            k == keyboard.Key.shift or k == keyboard.Key.shift_r
+            for k in self.current_keys
+        )
+        has_y = any(
+            hasattr(k, 'char') and k.char and k.char.lower() == 'y'
+            for k in self.current_keys
+        )
+        return has_shift and has_y

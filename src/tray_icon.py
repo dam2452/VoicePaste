@@ -31,6 +31,9 @@ class TrayIcon:
         elif status == "recording":
             self._draw_microphone(draw, size, (244, 67, 54))
             self._draw_sound_waves(draw, size, (244, 67, 54))
+        elif status == "downloading":
+            self._draw_microphone(draw, size, (156, 39, 176))
+            self._draw_download_arrow(draw, size, (156, 39, 176))
         elif status == "processing":
             self._draw_microphone(draw, size, (33, 150, 243))
             self._draw_clipboard(draw, size, (33, 150, 243))
@@ -86,6 +89,26 @@ class TrayIcon:
                     start=270, end=90, fill=color, width=wave_width)
             draw.arc([x_right - w, cy - h, x_right + w, cy + h],
                     start=90, end=270, fill=color, width=wave_width)
+
+    def _draw_download_arrow(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+        arrow_size = int(size * 0.3)
+        arrow_x = size - arrow_size - int(size * 0.05)
+        arrow_y = size - arrow_size - int(size * 0.05)
+        arrow_width = int(size * 0.06)
+
+        shaft_top = arrow_y + int(arrow_size * 0.2)
+        shaft_bottom = arrow_y + int(arrow_size * 0.6)
+        shaft_left = arrow_x + arrow_size // 2 - arrow_width // 2
+        shaft_right = arrow_x + arrow_size // 2 + arrow_width // 2
+
+        draw.rectangle([shaft_left, shaft_top, shaft_right, shaft_bottom], fill=color)
+
+        head_points = [
+            (arrow_x + arrow_size // 2, arrow_y + int(arrow_size * 0.8)),
+            (arrow_x + int(arrow_size * 0.2), shaft_bottom),
+            (arrow_x + int(arrow_size * 0.8), shaft_bottom)
+        ]
+        draw.polygon(head_points, fill=color)
 
     def _draw_clipboard(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
         clip_size = int(size * 0.36)
@@ -149,6 +172,9 @@ class TrayIcon:
             if status == "recording":
                 self.icon.icon = self.create_icon_image("recording")
                 self.icon.title = "VoicePaste - Recording"
+            elif status == "downloading":
+                self.icon.icon = self.create_icon_image("downloading")
+                self.icon.title = "VoicePaste - Downloading"
             elif status == "processing":
                 self.icon.icon = self.create_icon_image("processing")
                 self.icon.title = "VoicePaste - Processing"
@@ -160,10 +186,11 @@ class TrayIcon:
         status_map = {
             "idle": "Ready",
             "recording": "Recording...",
+            "downloading": "Downloading...",
             "processing": "Processing..."
         }
         status = status_map.get(self.status, self.status.capitalize())
-        icon = {"idle": "✓", "recording": "●", "processing": "⚙"}.get(self.status, "○")
+        icon = {"idle": "✓", "recording": "●", "downloading": "⬇", "processing": "⚙"}.get(self.status, "○")
         return f"{icon} Status: {status}"
 
     def _get_model_location(self, _=None):
