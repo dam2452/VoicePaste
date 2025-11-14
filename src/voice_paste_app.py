@@ -139,14 +139,13 @@ class VoicePasteApp:
     def on_file_hotkey(self):
         def process_file():
             try:
-                file_path = self.clipboard_manager.get_from_clipboard()
-                if not file_path or not isinstance(file_path, str):
-                    print("No file path in clipboard")
+                file_path = self.clipboard_manager.get_file_path_from_clipboard()
+                if not file_path:
+                    print("No file or file path in clipboard")
                     return
 
-                file_path = file_path.strip()
                 if not self.local_file_processor.is_valid_file_path(file_path):
-                    print(f"Not a valid audio/video file path: {file_path}")
+                    print(f"Not a valid audio/video file: {file_path}")
                     return
 
                 if self._try_use_cached_transcription(file_path):

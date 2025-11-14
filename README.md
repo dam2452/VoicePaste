@@ -95,7 +95,7 @@ python main.py
 **Usage:**
 - Press `Shift+V` → speak → press `Shift+V` → text in clipboard ✅
 - Copy YouTube URL → press `Shift+Y` → video transcribed → text in clipboard ✅
-- Copy file path → press `Shift+F` → file transcribed → text in clipboard ✅
+- Copy file or file path → press `Shift+F` → file transcribed → text in clipboard ✅
 
 ## 🎯 Usage
 
@@ -147,7 +147,7 @@ python main.py --keep-model-loaded
 
 ### 📁 Local File Transcription
 
-1. 📋 Copy audio/video file path to clipboard (e.g., `C:\Music\song.mp3`)
+1. 📋 Copy file from File Explorer (Ctrl+C on file) OR copy file path as text
 2. ⌨️ Press `Shift+F` - processing starts (icon turns orange)
 3. ⏳ Wait for audio extraction and transcription
 4. 📝 Transcription automatically copied to clipboard
