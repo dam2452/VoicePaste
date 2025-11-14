@@ -19,99 +19,81 @@ Voice-to-text application with real-time transcription and automatic clipboard i
 
 ## 🚀 Quick Start
 
-### 🪟 Windows (with NVIDIA GPU)
+> **⭐ Recommended:** Windows with NVIDIA GPU for best performance
+
+### 🪟 Windows
 
 ```bash
-python --version  # Must be 3.12 (not 3.13!)
-python -m venv .venv
-.venv\Scripts\activate
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install faster-whisper pynput PyAudio scipy pyperclip pystray pytest pytest-asyncio
-python main.py
-```
-
-### 🐧 Linux/macOS
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install faster-whisper pynput PyAudio scipy pyperclip pystray pytest pytest-asyncio
-python main.py
-```
-
-### 💻 CPU-only (no GPU)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-python main.py
-```
-
-Press `Shift+V` → 🎤 speak → press `Shift+V` again → ✅ text ready in clipboard!
-
-**Or copy YouTube URL and press `Shift+Y` → 📺 video transcribed → ✅ text in clipboard!**
-
-## 📋 Requirements
-
-- 🐍 **Python 3.12** (not 3.13 - PyTorch CUDA wheels not yet available for 3.13)
-- 🎮 NVIDIA GPU with CUDA (optional - runs on CPU without GPU)
-- 🎤 Microphone (for voice recording)
-- 🎬 **FFmpeg** (for YouTube transcription) - [Download](https://ffmpeg.org/download.html)
-
-## 📦 Installation
-
-### 1️⃣ Check Python version
-
-```bash
+# Check Python version (must be 3.12)
 python --version
-```
 
-If you have Python 3.13, install Python 3.12 from python.org
+# Install FFmpeg
+winget install ffmpeg
 
-### 2️⃣ Clone repository
-
-```bash
+# Setup project
 git clone https://github.com/yourusername/VoicePaste.git
 cd VoicePaste
-```
-
-### 3️⃣ Create virtual environment
-
-**Windows:**
-```bash
 python -m venv .venv
 .venv\Scripts\activate
+
+# Install dependencies (with CUDA for GPU)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+
+# Run
+python main.py
 ```
 
-**Linux/macOS:**
+### 🐧 Linux
+
 ```bash
+# Check Python version (must be 3.12)
+python3.12 --version
+
+# Install system dependencies
+sudo apt update && sudo apt install ffmpeg portaudio19-dev python3-tk
+
+# Setup project
+git clone https://github.com/yourusername/VoicePaste.git
+cd VoicePaste
 python3.12 -m venv .venv
 source .venv/bin/activate
-```
 
-### 4️⃣ Install dependencies
-
-**With GPU (NVIDIA CUDA):** 🎮
-```bash
+# Install dependencies
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install faster-whisper pynput PyAudio scipy pyperclip pystray pytest pytest-asyncio
-```
-
-**Without GPU (CPU only):** 💻
-```bash
 pip install -r requirements.txt
+
+# Run
+python main.py
 ```
 
-### 5️⃣ Verify CUDA (optional)
+### 🍎 macOS
 
 ```bash
-python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+# Check Python version (must be 3.12)
+python3.12 --version
+
+# Install system dependencies
+brew install ffmpeg portaudio
+
+# Setup project
+git clone https://github.com/yourusername/VoicePaste.git
+cd VoicePaste
+python3.12 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run
+python main.py
 ```
 
-✅ If output is `CUDA: True` - you have GPU support
-❌ If `False` - will run on CPU (slower but works)
+---
+
+**Usage:**
+- Press `Shift+V` → speak → press `Shift+V` → text in clipboard ✅
+- Copy YouTube URL → press `Shift+Y` → video transcribed → text in clipboard ✅
 
 ## 🎯 Usage
 
