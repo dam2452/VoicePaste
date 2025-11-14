@@ -219,14 +219,21 @@ Speak longer (minimum 1 second) or check if microphone is working.
 
 ### 🎬 FFmpeg not found (for YouTube transcription)
 
-**Windows:**
-1. Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html) or [gyan.dev](https://www.gyan.dev/ffmpeg/builds/)
-2. Extract to `C:\ffmpeg`
-3. Add `C:\ffmpeg\bin` to System PATH
-4. Restart terminal
+FFmpeg is a system dependency (not a Python package) and must be installed via system package manager.
+
+**Windows (winget):**
+```bash
+winget install ffmpeg
+```
+
+**Windows (Chocolatey):**
+```bash
+choco install ffmpeg
+```
 
 **Linux (Debian/Ubuntu):**
 ```bash
+sudo apt-get update
 sudo apt-get install ffmpeg
 ```
 
@@ -235,7 +242,7 @@ sudo apt-get install ffmpeg
 sudo dnf install ffmpeg
 ```
 
-**macOS:**
+**macOS (Homebrew):**
 ```bash
 brew install ffmpeg
 ```
