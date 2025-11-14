@@ -169,22 +169,6 @@ Automatically adapts to your microphone:
 - 🔄 Auto-resamples to 16kHz for Whisper processing
 - 🎛️ Works with virtual audio devices (NVIDIA Broadcast, VB-Cable, Krisp, etc.)
 
-## 📁 Project Structure
-
-```
-VoicePaste/
-├── src/
-│   ├── 🎤 audio_recorder.py       - Audio recording from microphone
-│   ├── 🤖 transcriber.py          - Whisper transcription
-│   ├── 📋 clipboard_manager.py    - Clipboard management
-│   ├── ⌨️ hotkey_handler.py       - Global hotkey handling
-│   ├── 🔔 tray_icon.py            - System tray integration
-│   └── 🎯 voice_paste_app.py      - Main application
-├── 🧪 tests/                      - Unit tests
-├── 🚀 main.py                     - Entry point
-└── 📦 requirements.txt            - Dependencies
-```
-
 ## 🔧 Troubleshooting
 
 ### ⚠️ cuDNN / CUDA errors
@@ -219,18 +203,18 @@ brew install ffmpeg
 ```
 
 ### 📦 PyAudio installation fails
-**Windows:** Download wheel from [Unofficial Windows Binaries](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio)
 
-**Linux (Debian/Ubuntu):**
+Already included in Quick Start for each OS. If still fails:
+
+**Windows:**
 ```bash
-sudo apt-get update
-sudo apt-get install portaudio19-dev python3-pyaudio python3-tk
-pip install PyAudio
+pip install pipwin
+pipwin install pyaudio
 ```
 
-**Linux (Fedora/RHEL):**
+**Linux:**
 ```bash
-sudo dnf install portaudio-devel
+sudo apt update && sudo apt install portaudio19-dev python3-tk
 pip install PyAudio
 ```
 
@@ -252,37 +236,6 @@ sudo apt-get install gir1.2-appindicator3-0.1 libappindicator3-1
 - Go to System Preferences → Security & Privacy → Privacy → Accessibility
 - Add Terminal or your Python interpreter to allowed applications
 
-## 🛠️ Development
-
-### 🧪 Running tests
-```bash
-pytest tests/
-```
-
-### 📐 Code structure
-- 🧩 Each module is self-contained and testable
-- 🔄 Threading used for non-blocking operations
-- ⚡ Lazy loading for optimal memory usage
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch
-3. ✏️ Make your changes
-4. ✅ Add tests if applicable
-5. 📬 Submit a pull request
-
 ## 📄 License
 
 MIT License - see LICENSE file for details
-
-## 🙏 Credits
-
-- **Whisper** - OpenAI's speech recognition model
-- **faster-whisper** - Efficient Whisper implementation by Guillaume Klein
-- Built with Python, PyTorch, and lots of ☕
-
-## 👨‍💻 Author
-
-Created by dam2452
