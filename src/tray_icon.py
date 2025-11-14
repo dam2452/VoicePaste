@@ -10,12 +10,16 @@ class TrayIcon:
         on_quit: Callable,
         on_toggle_recording: Callable = None,
         on_toggle_keep_model: Callable = None,
-        get_model_status: Callable = None
+        get_model_status: Callable = None,
+        on_transcribe_youtube: Callable = None,
+        on_transcribe_file: Callable = None
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
         self.on_toggle_keep_model = on_toggle_keep_model
         self.get_model_status = get_model_status
+        self.on_transcribe_youtube = on_transcribe_youtube
+        self.on_transcribe_file = on_transcribe_file
         self.icon = None
         self.status = "idle"
         self.thread = None
@@ -152,6 +156,17 @@ class TrayIcon:
                     enabled=bool(self.on_toggle_recording)
                 ),
                 pystray.MenuItem(
+                    "Transcribe YouTube URL... (Shift+Y)",
+                    self._transcribe_youtube_action,
+                    enabled=bool(self.on_transcribe_youtube)
+                ),
+                pystray.MenuItem(
+                    "Transcribe File... (Shift+F)",
+                    self._transcribe_file_action,
+                    enabled=bool(self.on_transcribe_file)
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
                     "Keep Model in Memory",
                     self._toggle_keep_model_action,
                     checked=lambda _: self.keep_model_enabled,
@@ -219,6 +234,14 @@ class TrayIcon:
             self.on_toggle_keep_model()
             if self.icon:
                 self.icon.update_menu()
+
+    def _transcribe_youtube_action(self, _=None):
+        if self.on_transcribe_youtube:
+            self.on_transcribe_youtube()
+
+    def _transcribe_file_action(self, _=None):
+        if self.on_transcribe_file:
+            self.on_transcribe_file()
 
     def _quit_action(self, _=None):
         if self.icon:

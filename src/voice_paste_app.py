@@ -37,7 +37,9 @@ class VoicePasteApp:
             on_quit=self.quit,
             on_toggle_recording=self.toggle_recording,
             on_toggle_keep_model=self.toggle_keep_model,
-            get_model_status=self.get_model_status
+            get_model_status=self.get_model_status,
+            on_transcribe_youtube=self.transcribe_youtube_from_dialog,
+            on_transcribe_file=self.transcribe_file_from_dialog
         )
 
     def start(self):
@@ -249,6 +251,125 @@ class VoicePasteApp:
             return "RAM (CPU)"
         else:
             return "Unknown"
+
+    def transcribe_youtube_from_dialog(self):
+        def process():
+            try:
+                import tkinter as tk
+                from tkinter import ttk
+
+                dialog = tk.Tk()
+                dialog.title("Transcribe YouTube Video")
+                dialog.geometry("500x180")
+                dialog.resizable(False, False)
+
+                try:
+                    dialog.iconbitmap(default='icon.ico')
+                except Exception:
+                    pass
+
+                dialog.configure(bg='#f0f0f0')
+
+                main_frame = ttk.Frame(dialog, padding="20")
+                main_frame.pack(fill=tk.BOTH, expand=True)
+
+                title_label = ttk.Label(
+                    main_frame,
+                    text="Enter YouTube URL",
+                    font=('Segoe UI', 11, 'bold')
+                )
+                title_label.pack(pady=(0, 10))
+
+                url_var = tk.StringVar()
+                url_entry = ttk.Entry(
+                    main_frame,
+                    textvariable=url_var,
+                    font=('Segoe UI', 10),
+                    width=50
+                )
+                url_entry.pack(pady=10, ipady=5)
+                url_entry.focus()
+
+                button_frame = ttk.Frame(main_frame)
+                button_frame.pack(pady=15)
+
+                result = {'url': None}
+
+                def on_ok():
+                    result['url'] = url_var.get().strip()
+                    dialog.destroy()
+
+                def on_cancel():
+                    dialog.destroy()
+
+                ok_button = ttk.Button(
+                    button_frame,
+                    text="Transcribe",
+                    command=on_ok,
+                    width=12
+                )
+                ok_button.pack(side=tk.LEFT, padx=5)
+
+                cancel_button = ttk.Button(
+                    button_frame,
+                    text="Cancel",
+                    command=on_cancel,
+                    width=12
+                )
+                cancel_button.pack(side=tk.LEFT, padx=5)
+
+                url_entry.bind('<Return>', lambda e: on_ok())
+                url_entry.bind('<Escape>', lambda e: on_cancel())
+
+                dialog.update_idletasks()
+                x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+                y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+                dialog.geometry(f'+{x}+{y}')
+
+                dialog.mainloop()
+
+                if result['url']:
+                    self.clipboard_manager.copy_to_clipboard(result['url'])
+                    self.on_youtube_hotkey()
+            except Exception as e:
+                print(f"Error in YouTube dialog: {e}")
+
+        threading.Thread(target=process, daemon=True).start()
+
+    def transcribe_file_from_dialog(self):
+        def process():
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+
+                root = tk.Tk()
+                root.withdraw()
+
+                try:
+                    root.iconbitmap(default='icon.ico')
+                except Exception:
+                    pass
+
+                filetypes = [
+                    ("Audio/Video files", "*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma *.mp4 *.avi *.mkv *.mov *.wmv *.flv *.webm *.m4v"),
+                    ("Audio files", "*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma"),
+                    ("Video files", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv *.webm *.m4v"),
+                    ("All files", "*.*")
+                ]
+
+                file_path = filedialog.askopenfilename(
+                    title="Select Audio or Video File - VoicePaste",
+                    filetypes=filetypes
+                )
+                root.destroy()
+
+                if file_path:
+                    self.clipboard_manager.copy_to_clipboard(file_path)
+                    self.on_file_hotkey()
+            except Exception as e:
+                print(f"Error in file dialog: {e}")
+
+        threading.Thread(target=process, daemon=True).start()
 
     def _schedule_cache_cleanup(self):
         if self.cache_cleanup_timer:
