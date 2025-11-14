@@ -204,9 +204,36 @@ Speak longer (minimum 1 second) or check if microphone is working.
 ### 📦 PyAudio installation fails
 **Windows:** Download wheel from [Unofficial Windows Binaries](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio)
 
-**Linux:** `sudo apt-get install portaudio19-dev python3-pyaudio`
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt-get update
+sudo apt-get install portaudio19-dev python3-pyaudio python3-tk
+pip install PyAudio
+```
 
-**macOS:** `brew install portaudio && pip install pyaudio`
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install portaudio-devel
+pip install PyAudio
+```
+
+**macOS:**
+```bash
+brew install portaudio
+pip install PyAudio
+```
+
+### 🐧 Linux Additional Requirements
+For system tray icon support:
+```bash
+sudo apt-get install gir1.2-appindicator3-0.1 libappindicator3-1
+```
+
+### 🍎 macOS Additional Notes
+- System tray icon requires Pillow with ImageDraw support (included in requirements)
+- Global hotkeys work system-wide but may require accessibility permissions
+- Go to System Preferences → Security & Privacy → Privacy → Accessibility
+- Add Terminal or your Python interpreter to allowed applications
 
 ## 🛠️ Development
 

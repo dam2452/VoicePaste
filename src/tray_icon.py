@@ -114,31 +114,31 @@ class TrayIcon:
     def start(self):
         def create_menu():
             return pystray.Menu(
-                pystray.MenuItem("VoicePaste", lambda: None, enabled=False),
+                pystray.MenuItem("VoicePaste - Voice to Text", lambda: None, enabled=False),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Status", self._get_status_text, enabled=False),
-                pystray.MenuItem("Model Location", self._get_model_location, enabled=False),
+                pystray.MenuItem(self._get_status_text, lambda: None, enabled=False),
+                pystray.MenuItem(self._get_model_location, lambda: None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
-                    "Start/Stop Recording (Shift+V)",
+                    "Record (Shift+V)",
                     self._toggle_recording_action,
                     enabled=bool(self.on_toggle_recording)
                 ),
                 pystray.MenuItem(
-                    "Keep Model Loaded",
+                    "Keep Model in Memory",
                     self._toggle_keep_model_action,
                     checked=lambda _: self.keep_model_enabled,
                     enabled=bool(self.on_toggle_keep_model)
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Quit", self._quit_action)
+                pystray.MenuItem("Exit", self._quit_action)
             )
 
         self.icon = pystray.Icon(
             "VoicePaste",
             self.create_icon_image("idle"),
             "VoicePaste - Ready",
-            menu=create_menu
+            menu=create_menu()
         )
         self.thread = threading.Thread(target=self.icon.run, daemon=True)
         self.thread.start()
@@ -162,13 +162,21 @@ class TrayIcon:
             "recording": "Recording...",
             "processing": "Processing..."
         }
-        return f"Status: {status_map.get(self.status, self.status.capitalize())}"
+        status = status_map.get(self.status, self.status.capitalize())
+        icon = {"idle": "✓", "recording": "●", "processing": "⚙"}.get(self.status, "○")
+        return f"{icon} Status: {status}"
 
     def _get_model_location(self, _=None):
         if self.get_model_status:
             location = self.get_model_status()
-            return f"Model: {location}"
-        return "Model: Unknown"
+            if "VRAM" in location:
+                icon = "⚡"
+            elif "RAM" in location:
+                icon = "💾"
+            else:
+                icon = "○"
+            return f"{icon} Model: {location}"
+        return "○ Model: Unknown"
 
     def _toggle_recording_action(self, _=None):
         if self.on_toggle_recording:
