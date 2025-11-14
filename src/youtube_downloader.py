@@ -1,7 +1,7 @@
 import re
 import tempfile
-import os
 import numpy as np
+from pathlib import Path
 import yt_dlp
 from scipy.io import wavfile
 from typing import Optional, Tuple
@@ -9,9 +9,10 @@ from typing import Optional, Tuple
 
 class YouTubeDownloader:
     def __init__(self):
-        self.temp_dir = tempfile.gettempdir()
+        self.temp_dir = Path(tempfile.gettempdir())
 
-    def is_youtube_url(self, url: str) -> bool:
+    @staticmethod
+    def is_youtube_url(url: str) -> bool:
         youtube_patterns = [
             r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/',
             r'(https?://)?(www\.)?youtu\.be/'
@@ -23,11 +24,12 @@ class YouTubeDownloader:
             print(f"URL is not a YouTube link: {url}")
             return None
 
-        temp_audio_path = os.path.join(self.temp_dir, 'voicepaste_yt_audio.wav')
+        temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
 
+        # noinspection PyBroadException
         try:
-            if os.path.exists(temp_audio_path):
-                os.remove(temp_audio_path)
+            if temp_audio_path.exists():
+                temp_audio_path.unlink()
         except Exception:
             pass
 
@@ -37,7 +39,7 @@ class YouTubeDownloader:
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
             }],
-            'outtmpl': temp_audio_path.replace('.wav', ''),
+            'outtmpl': str(temp_audio_path.with_suffix('')),
             'quiet': True,
             'no_warnings': True,
         }
@@ -49,12 +51,12 @@ class YouTubeDownloader:
                 title = info.get('title', 'Unknown')
                 print(f"Downloaded: {title}")
 
-            if not os.path.exists(temp_audio_path):
+            if not temp_audio_path.exists():
                 print(f"Audio file not found: {temp_audio_path}")
                 return None
 
             print("Converting audio to 16kHz mono...")
-            sample_rate, audio = wavfile.read(temp_audio_path)
+            sample_rate, audio = wavfile.read(str(temp_audio_path))
 
             if audio.dtype == np.int16:
                 audio = audio.astype(np.float32) / 32768.0
@@ -70,8 +72,9 @@ class YouTubeDownloader:
                 audio = resample(audio, num_samples)
                 sample_rate = 16000
 
+            # noinspection PyBroadException
             try:
-                os.remove(temp_audio_path)
+                temp_audio_path.unlink()
             except Exception:
                 pass
 
@@ -80,17 +83,19 @@ class YouTubeDownloader:
 
         except Exception as e:
             print(f"Error downloading YouTube audio: {e}")
+            # noinspection PyBroadException
             try:
-                if os.path.exists(temp_audio_path):
-                    os.remove(temp_audio_path)
+                if temp_audio_path.exists():
+                    temp_audio_path.unlink()
             except Exception:
                 pass
             return None
 
     def cleanup(self):
-        temp_audio_path = os.path.join(self.temp_dir, 'voicepaste_yt_audio.wav')
+        temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
+        # noinspection PyBroadException
         try:
-            if os.path.exists(temp_audio_path):
-                os.remove(temp_audio_path)
+            if temp_audio_path.exists():
+                temp_audio_path.unlink()
         except Exception:
             pass

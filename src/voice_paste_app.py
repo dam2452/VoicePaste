@@ -2,7 +2,6 @@ import threading
 import sys
 import time
 from typing import Optional, Dict, Tuple
-import numpy as np
 
 from src.audio_recorder import AudioRecorder
 from src.transcriber import Transcriber
@@ -10,6 +9,7 @@ from src.clipboard_manager import ClipboardManager
 from src.hotkey_handler import HotkeyHandler
 from src.tray_icon import TrayIcon
 from src.youtube_downloader import YouTubeDownloader
+from src.local_file_processor import LocalFileProcessor
 
 
 class VoicePasteApp:
@@ -18,9 +18,11 @@ class VoicePasteApp:
         self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded)
         self.clipboard_manager = ClipboardManager()
         self.youtube_downloader = YouTubeDownloader()
+        self.local_file_processor = LocalFileProcessor()
         self.hotkey_handler = HotkeyHandler(
             voice_callback=self.on_voice_hotkey,
-            youtube_callback=self.on_youtube_hotkey
+            youtube_callback=self.on_youtube_hotkey,
+            file_callback=self.on_file_hotkey
         )
         self.is_running = True
         self.processing_lock = threading.Lock()
@@ -50,6 +52,7 @@ class VoicePasteApp:
 
         print("Press Shift+V to start/stop recording...")
         print("Press Shift+Y to transcribe YouTube video from clipboard...")
+        print("Press Shift+F to transcribe audio/video file from clipboard...")
         print("Press Ctrl+C to quit")
 
         print("Starting hotkey listener...")
@@ -64,6 +67,20 @@ class VoicePasteApp:
         except KeyboardInterrupt:
             print("\nReceived Ctrl+C, shutting down...")
             self.quit()
+
+    def _try_use_cached_transcription(self, key: str) -> bool:
+        if key not in self.transcription_cache:
+            return False
+
+        cached_text, timestamp = self.transcription_cache[key]
+        if time.time() - timestamp < self.cache_ttl:
+            print(f"Using cached transcription for: {key}")
+            self.clipboard_manager.copy_to_clipboard(cached_text)
+            print("Cached transcription copied to clipboard!")
+            return True
+
+        del self.transcription_cache[key]
+        return False
 
     def on_voice_hotkey(self, is_pressed: bool):
         if is_pressed:
@@ -84,15 +101,8 @@ class VoicePasteApp:
                     print(f"Not a YouTube URL: {url}")
                     return
 
-                if url in self.transcription_cache:
-                    cached_text, timestamp = self.transcription_cache[url]
-                    if time.time() - timestamp < self.cache_ttl:
-                        print(f"Using cached transcription for: {url}")
-                        self.clipboard_manager.copy_to_clipboard(cached_text)
-                        print("Cached transcription copied to clipboard!")
-                        return
-                    else:
-                        del self.transcription_cache[url]
+                if self._try_use_cached_transcription(url):
+                    return
 
                 print(f"Processing YouTube URL: {url}")
                 self.tray_icon.update_status("downloading")
@@ -125,6 +135,53 @@ class VoicePasteApp:
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_youtube, daemon=True).start()
+
+    def on_file_hotkey(self):
+        def process_file():
+            try:
+                file_path = self.clipboard_manager.get_from_clipboard()
+                if not file_path or not isinstance(file_path, str):
+                    print("No file path in clipboard")
+                    return
+
+                file_path = file_path.strip()
+                if not self.local_file_processor.is_valid_file_path(file_path):
+                    print(f"Not a valid audio/video file path: {file_path}")
+                    return
+
+                if self._try_use_cached_transcription(file_path):
+                    return
+
+                print(f"Processing file: {file_path}")
+                self.tray_icon.update_status("processing")
+
+                result = self.local_file_processor.process_file(file_path)
+                if not result:
+                    print("Failed to process file")
+                    self.tray_icon.update_status("idle")
+                    return
+
+                audio_data, filename = result
+                print(f"Transcribing: {filename}")
+
+                text = self.transcriber.transcribe(audio_data)
+                if text:
+                    print(f"Transcription ({len(text)} chars): {text[:100]}...")
+                    self.clipboard_manager.copy_to_clipboard(text)
+                    print("Transcription copied to clipboard!")
+
+                    self.transcription_cache[file_path] = (text, time.time())
+                    self._schedule_cache_cleanup()
+                else:
+                    print("No transcription result")
+
+                self.tray_icon.update_status("idle")
+
+            except Exception as e:
+                print(f"File transcription error: {e}")
+                self.tray_icon.update_status("idle")
+
+        threading.Thread(target=process_file, daemon=True).start()
 
     def _start_recording(self):
         with self.processing_lock:
@@ -225,6 +282,7 @@ class VoicePasteApp:
         self.hotkey_handler.stop()
         self.transcriber.shutdown()
         self.youtube_downloader.cleanup()
+        self.local_file_processor.cleanup()
         self.tray_icon.stop()
         self.shutdown_event.set()
         sys.exit(0)

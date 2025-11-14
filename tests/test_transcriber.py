@@ -1,6 +1,6 @@
-import pytest
 import numpy as np
-import time
+import pytest
+
 from src.transcriber import Transcriber
 
 

@@ -1,4 +1,3 @@
-import pytest
 from src.clipboard_manager import ClipboardManager
 
 

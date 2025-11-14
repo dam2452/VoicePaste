@@ -35,6 +35,7 @@ class AudioRecorder:
         if self.device_id is None:
             return self.target_sample_rate
 
+        # noinspection PyBroadException
         try:
             device_info = self.pyaudio_instance.get_device_info_by_index(self.device_id)
             native_rate = int(device_info['defaultSampleRate'])
@@ -93,10 +94,11 @@ class AudioRecorder:
             return audio_float
         return None
 
+    # noinspection PyUnusedLocal
     def _audio_callback(self, in_data, frame_count, time_info, status):
         if self.is_recording:
             self.audio_data.append(in_data)
-        return (in_data, pyaudio.paContinue)
+        return in_data, pyaudio.paContinue
 
     def get_available_devices(self):
         devices = []
@@ -106,6 +108,7 @@ class AudioRecorder:
         return devices
 
     def get_device_info(self):
+        # noinspection PyBroadException
         try:
             if self.device_id is not None:
                 return self.pyaudio_instance.get_device_info_by_index(self.device_id)

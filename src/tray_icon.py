@@ -40,7 +40,8 @@ class TrayIcon:
 
         return image
 
-    def _draw_microphone(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+    @staticmethod
+    def _draw_microphone(draw: ImageDraw.ImageDraw, size: int, color: tuple):
         cx, cy = size // 2, size // 2
 
         mic_width = int(size * 0.50)
@@ -69,7 +70,8 @@ class TrayIcon:
                   cx + int(mic_width * 0.6), stand_bottom],
                  fill=color, width=stand_width)
 
-    def _draw_sound_waves(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+    @staticmethod
+    def _draw_sound_waves(draw: ImageDraw.ImageDraw, size: int, color: tuple):
         cx, cy = size // 2, size // 2
 
         wave_offset = int(size * 0.38)
@@ -90,7 +92,8 @@ class TrayIcon:
             draw.arc([x_right - w, cy - h, x_right + w, cy + h],
                     start=90, end=270, fill=color, width=wave_width)
 
-    def _draw_download_arrow(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+    @staticmethod
+    def _draw_download_arrow(draw: ImageDraw.ImageDraw, size: int, color: tuple):
         arrow_size = int(size * 0.3)
         arrow_x = size - arrow_size - int(size * 0.05)
         arrow_y = size - arrow_size - int(size * 0.05)
@@ -110,7 +113,8 @@ class TrayIcon:
         ]
         draw.polygon(head_points, fill=color)
 
-    def _draw_clipboard(self, draw: ImageDraw.ImageDraw, size: int, color: tuple):
+    @staticmethod
+    def _draw_clipboard(draw: ImageDraw.ImageDraw, size: int, color: tuple):
         clip_size = int(size * 0.36)
         clip_x = size - clip_size - int(size * 0.04)
         clip_y = size - clip_size - int(size * 0.04)

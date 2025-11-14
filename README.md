@@ -8,10 +8,11 @@ Voice-to-text application with real-time transcription and automatic clipboard i
 
 - 🎯 **Voice recording** - Simple Shift+V hotkey to start/stop recording
 - 📺 **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
+- 📁 **Local file transcription** - Press Shift+F to transcribe audio/video files from clipboard
 - ⚡ **Real-time transcription** - Using OpenAI Whisper Turbo model
 - 🚀 **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
 - 📋 **Automatic clipboard** - Transcribed text instantly available for pasting
-- 💾 **Smart caching** - YouTube transcriptions cached for 1 hour (avoid re-downloading)
+- 💾 **Smart caching** - YouTube and file transcriptions cached for 1 hour (avoid re-processing)
 - 🔔 **System tray integration** - Runs quietly in background with functional menu
 - 🧠 **Smart memory management** - Auto-loads/unloads model to save GPU memory
 - 🎧 **Virtual audio support** - Works with NVIDIA Broadcast, VB-Cable, Krisp, etc.
@@ -94,6 +95,7 @@ python main.py
 **Usage:**
 - Press `Shift+V` → speak → press `Shift+V` → text in clipboard ✅
 - Copy YouTube URL → press `Shift+Y` → video transcribed → text in clipboard ✅
+- Copy file path → press `Shift+F` → file transcribed → text in clipboard ✅
 
 ## 🎯 Usage
 
@@ -142,6 +144,19 @@ python main.py --keep-model-loaded
 4. 📝 Transcription automatically copied to clipboard
 5. ✨ Paste anywhere with `Ctrl+V`
 6. 💾 Transcription cached for 1 hour - next use instant!
+
+### 📁 Local File Transcription
+
+1. 📋 Copy audio/video file path to clipboard (e.g., `C:\Music\song.mp3`)
+2. ⌨️ Press `Shift+F` - processing starts (icon turns orange)
+3. ⏳ Wait for audio extraction and transcription
+4. 📝 Transcription automatically copied to clipboard
+5. ✨ Paste anywhere with `Ctrl+V`
+6. 💾 Transcription cached for 1 hour - next use instant!
+
+**Supported formats:**
+- Audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.aac`, `.wma`
+- Video: `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv`, `.flv`, `.webm`, `.m4v`
 
 **Icon colors:** 🟢 ready → 🔴 recording → 🟣 downloading → 🔵 processing → 🟢 ready
 

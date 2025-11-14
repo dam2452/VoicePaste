@@ -42,7 +42,7 @@ class Transcriber:
                 try:
                     self.model = WhisperModel(
                         self.model_size,
-                        device=device,
+                        device=str(device),
                         compute_type=compute_type
                     )
                     self.current_device = device
