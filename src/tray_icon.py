@@ -5,11 +5,21 @@ from typing import Callable
 
 
 class TrayIcon:
-    def __init__(self, on_quit: Callable):
+    def __init__(
+        self,
+        on_quit: Callable,
+        on_toggle_recording: Callable = None,
+        on_toggle_keep_model: Callable = None,
+        get_model_status: Callable = None
+    ):
         self.on_quit = on_quit
+        self.on_toggle_recording = on_toggle_recording
+        self.on_toggle_keep_model = on_toggle_keep_model
+        self.get_model_status = get_model_status
         self.icon = None
         self.status = "idle"
         self.thread = None
+        self.keep_model_enabled = False
 
     def create_icon_image(self, status: str = "idle") -> Image.Image:
         size = 512
@@ -102,18 +112,33 @@ class TrayIcon:
                  fill=color, width=line_width)
 
     def start(self):
-        menu = pystray.Menu(
-            pystray.MenuItem("VoicePaste", lambda: None, enabled=False),
-            pystray.MenuItem("Status: Ready", self._get_status, enabled=False),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit", self._quit_action)
-        )
+        def create_menu():
+            return pystray.Menu(
+                pystray.MenuItem("VoicePaste", lambda: None, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Status", self._get_status_text, enabled=False),
+                pystray.MenuItem("Model Location", self._get_model_location, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Start/Stop Recording (Shift+V)",
+                    self._toggle_recording_action,
+                    enabled=bool(self.on_toggle_recording)
+                ),
+                pystray.MenuItem(
+                    "Keep Model Loaded",
+                    self._toggle_keep_model_action,
+                    checked=lambda _: self.keep_model_enabled,
+                    enabled=bool(self.on_toggle_keep_model)
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Quit", self._quit_action)
+            )
 
         self.icon = pystray.Icon(
             "VoicePaste",
             self.create_icon_image("idle"),
             "VoicePaste - Ready",
-            menu
+            menu=create_menu
         )
         self.thread = threading.Thread(target=self.icon.run, daemon=True)
         self.thread.start()
@@ -131,10 +156,32 @@ class TrayIcon:
                 self.icon.icon = self.create_icon_image("idle")
                 self.icon.title = "VoicePaste - Ready"
 
-    def _get_status(self):
-        return f"Status: {self.status.capitalize()}"
+    def _get_status_text(self, _=None):
+        status_map = {
+            "idle": "Ready",
+            "recording": "Recording...",
+            "processing": "Processing..."
+        }
+        return f"Status: {status_map.get(self.status, self.status.capitalize())}"
 
-    def _quit_action(self):
+    def _get_model_location(self, _=None):
+        if self.get_model_status:
+            location = self.get_model_status()
+            return f"Model: {location}"
+        return "Model: Unknown"
+
+    def _toggle_recording_action(self, _=None):
+        if self.on_toggle_recording:
+            self.on_toggle_recording()
+
+    def _toggle_keep_model_action(self, _=None):
+        if self.on_toggle_keep_model:
+            self.keep_model_enabled = not self.keep_model_enabled
+            self.on_toggle_keep_model()
+            if self.icon:
+                self.icon.update_menu()
+
+    def _quit_action(self, _=None):
         if self.icon:
             self.icon.stop()
         self.on_quit()

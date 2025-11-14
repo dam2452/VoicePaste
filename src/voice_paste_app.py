@@ -15,11 +15,18 @@ class VoicePasteApp:
         self.audio_recorder = AudioRecorder(device_id=device_id)
         self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded)
         self.clipboard_manager = ClipboardManager()
-        self.tray_icon = TrayIcon(on_quit=self.quit)
         self.hotkey_handler = HotkeyHandler(callback=self.on_hotkey)
         self.is_running = True
         self.processing_lock = threading.Lock()
         self.shutdown_event = threading.Event()
+        self.is_recording = False
+
+        self.tray_icon = TrayIcon(
+            on_quit=self.quit,
+            on_toggle_recording=self.toggle_recording,
+            on_toggle_keep_model=self.toggle_keep_model,
+            get_model_status=self.get_model_status
+        )
 
     def start(self):
         print("VoicePaste started!")
@@ -32,6 +39,7 @@ class VoicePasteApp:
             print("Please check your microphone connection.")
 
         print("Press Shift+V to start recording...")
+        print("Press Ctrl+C to quit")
 
         print("Starting hotkey listener...")
         self.hotkey_handler.start()
@@ -40,7 +48,8 @@ class VoicePasteApp:
         self.tray_icon.start()
 
         try:
-            self.shutdown_event.wait()
+            while not self.shutdown_event.is_set():
+                self.shutdown_event.wait(timeout=0.5)
         except KeyboardInterrupt:
             print("\nReceived Ctrl+C, shutting down...")
             self.quit()
@@ -55,17 +64,22 @@ class VoicePasteApp:
         with self.processing_lock:
             try:
                 print("Started recording...")
+                self.is_recording = True
                 self.tray_icon.update_status("recording")
                 self.audio_recorder.start_recording()
                 self.transcriber.preload_for_recording()
             except RuntimeError as e:
                 print(f"Error starting recording: {e}")
+                self.is_recording = False
                 self.tray_icon.update_status("idle")
             except Exception as e:
                 print(f"Unexpected error: {e}")
+                self.is_recording = False
                 self.tray_icon.update_status("idle")
 
     def _stop_recording(self):
+        self.is_recording = False
+
         def process_audio():
             with self.processing_lock:
                 print("Stopped recording. Processing...")
@@ -92,6 +106,27 @@ class VoicePasteApp:
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_audio, daemon=True).start()
+
+    def toggle_recording(self):
+        if self.is_recording:
+            self._stop_recording()
+        else:
+            self._start_recording()
+
+    def toggle_keep_model(self):
+        self.transcriber.keep_model_loaded = not self.transcriber.keep_model_loaded
+        status = "enabled" if self.transcriber.keep_model_loaded else "disabled"
+        print(f"Keep model loaded: {status}")
+
+    def get_model_status(self):
+        if self.transcriber.model is None:
+            return "Not loaded"
+        elif self.transcriber.current_device == "cuda":
+            return "VRAM (GPU)"
+        elif self.transcriber.current_device == "cpu":
+            return "RAM (CPU)"
+        else:
+            return "Unknown"
 
     def quit(self):
         print("Shutting down...")
