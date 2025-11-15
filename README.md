@@ -1,4 +1,5 @@
 # 🎤 VoicePaste
+<img width="386" height="385" alt="logo" src="https://github.com/user-attachments/assets/ea7bd00f-d363-4f51-9146-c9e5712f0860" />
 
 Voice-to-text application with real-time transcription and automatic clipboard integration.
 
