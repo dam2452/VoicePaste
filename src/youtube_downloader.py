@@ -34,7 +34,6 @@ class YouTubeDownloader:
             pass
 
         ydl_opts = {
-            'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
@@ -42,6 +41,8 @@ class YouTubeDownloader:
             'outtmpl': str(temp_audio_path.with_suffix('')),
             'quiet': True,
             'no_warnings': True,
+            'cookiesfrombrowser': ('firefox',),
+            'js_runtimes': {'node': {}},
         }
 
         try:
