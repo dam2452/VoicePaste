@@ -10,10 +10,11 @@ Voice-to-text application with real-time transcription and automatic clipboard i
 - 🎯 **Voice recording** - Simple Shift+V hotkey to start/stop recording
 - 📺 **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
 - 📁 **Local file transcription** - Press Shift+F to transcribe audio/video files from clipboard
+- 📚 **Batch processing** - Select and transcribe multiple files at once, each cached separately
 - ⚡ **Real-time transcription** - Using OpenAI Whisper Turbo model
 - 🚀 **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
 - 📋 **Automatic clipboard** - Transcribed text instantly available for pasting
-- 💾 **Smart caching** - YouTube and file transcriptions cached for 1 hour (avoid re-processing)
+- 💾 **Persistent caching** - All transcriptions cached 24h, survives restarts (avoid re-processing)
 - 🔔 **System tray integration** - Runs quietly in background with functional menu
 - 🧠 **Smart memory management** - Auto-loads/unloads model to save GPU memory
 - 🎧 **Virtual audio support** - Works with NVIDIA Broadcast, VB-Cable, Krisp, etc.
@@ -121,6 +122,29 @@ python main.py --device 6
 python main.py --keep-model-loaded
 ```
 
+### 🎮 GPU Profile
+Choose quality settings based on your GPU:
+
+```bash
+# Standard profile (RTX 2080S 8GB) - default
+python main.py --gpu-profile standard
+
+# High-End profile (RTX 3090+ 24GB) - maximum quality
+python main.py --gpu-profile high_end
+```
+
+**Standard profile (8GB VRAM):**
+- beam_size=5, patience=1.0, temperature=0.0
+- Good quality, fast transcription
+- Recommended for RTX 2060, 2070, 2080, 3060, 3070
+
+**High-End profile (24GB VRAM):**
+- beam_size=10, patience=1.5, temperature=0.0
+- Maximum quality, **same speed or faster** (better beam search)
+- Recommended for RTX 3090, 4090, A5000, A6000
+
+You can also change GPU profile from system tray menu.
+
 ### 🚪 Exit
 - Press `Ctrl+C` in terminal
 - Right-click tray icon → Exit
@@ -144,16 +168,25 @@ python main.py --keep-model-loaded
 3. ⏳ Wait for download and transcription (icon shows download arrow)
 4. 📝 Transcription automatically copied to clipboard
 5. ✨ Paste anywhere with `Ctrl+V`
-6. 💾 Transcription cached for 1 hour - next use instant!
+6. 💾 Transcription cached for 24h - next use instant, even after restart!
 
 ### 📁 Local File Transcription
 
+**Single file:**
 1. 📋 Copy file from File Explorer (Ctrl+C on file) OR copy file path as text
 2. ⌨️ Press `Shift+F` - processing starts (icon turns orange)
 3. ⏳ Wait for audio extraction and transcription
 4. 📝 Transcription automatically copied to clipboard
 5. ✨ Paste anywhere with `Ctrl+V`
-6. 💾 Transcription cached for 1 hour - next use instant!
+6. 💾 Transcription cached for 24h - next use instant, even after restart!
+
+**Multiple files:**
+1. 📋 Select and copy multiple files from File Explorer (Ctrl+C on multiple files)
+2. ⌨️ Press `Shift+F` - processing starts for all files
+3. ⏳ Each file processed and transcribed separately
+4. 📝 All transcriptions concatenated with filename headers
+5. ✨ Paste anywhere with `Ctrl+V`
+6. 💾 Each file cached separately for 24h - can use individually later, survives restarts!
 
 **Supported formats:**
 - Audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.aac`, `.wma`
@@ -162,6 +195,23 @@ python main.py --keep-model-loaded
 **Icon colors:** 🟢 ready → 🔴 recording → 🟣 downloading → 🔵 processing → 🟢 ready
 
 ## 🎛️ Advanced Features
+
+### 💾 Persistent Caching (24h)
+
+All transcriptions are automatically cached for 24 hours:
+- 📝 **Survives restarts** - Cache stored in `~/.voicepaste_cache.json`
+- ⚡ **Instant results** - Re-using cached transcription takes <1ms
+- 🔄 **Auto-cleanup** - Expired entries removed automatically
+- 📊 **All types** - YouTube, single files, batch files all cached equally
+
+**Example:**
+```
+Day 1, 9:00 AM  → Process 5 lectures (30 mins total)
+Day 1, 3:00 PM  → Reopen lecture 3 → Instant from cache ✓
+Day 2, 8:00 AM  → Reboot PC, reopen lecture 1 → Still cached ✓
+Day 2, 10:00 AM → Reopen all 5 → All instant from cache ✓
+Day 3, 9:00 AM  → Cache expired, would re-process if needed
+```
 
 ### 🧠 Smart Memory Management
 

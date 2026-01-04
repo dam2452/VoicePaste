@@ -65,5 +65,6 @@ desktop.ini
 .env
 .env.local
 config.local.json
+.voicepaste_cache.json
 /.idea
 /.claude

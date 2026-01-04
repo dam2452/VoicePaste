@@ -1,6 +1,8 @@
 import threading
 import sys
 import time
+import json
+from pathlib import Path
 from typing import Optional, Dict, Tuple
 
 from src.audio_recorder import AudioRecorder
@@ -13,9 +15,9 @@ from src.local_file_processor import LocalFileProcessor
 
 
 class VoicePasteApp:
-    def __init__(self, keep_model_loaded: bool = False, device_id: Optional[int] = None):
+    def __init__(self, keep_model_loaded: bool = False, device_id: Optional[int] = None, gpu_profile: str = "standard"):
         self.audio_recorder = AudioRecorder(device_id=device_id)
-        self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded)
+        self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded, gpu_profile=gpu_profile)
         self.clipboard_manager = ClipboardManager()
         self.youtube_downloader = YouTubeDownloader()
         self.local_file_processor = LocalFileProcessor()
@@ -30,8 +32,10 @@ class VoicePasteApp:
         self.is_recording = False
 
         self.transcription_cache: Dict[str, Tuple[str, float]] = {}
-        self.cache_ttl = 3600
+        self.cache_ttl = 86400
+        self.cache_file = Path.home() / '.voicepaste_cache.json'
         self.cache_cleanup_timer: Optional[threading.Timer] = None
+        self._load_cache()
 
         self.tray_icon = TrayIcon(
             on_quit=self.quit,
@@ -39,7 +43,9 @@ class VoicePasteApp:
             on_toggle_keep_model=self.toggle_keep_model,
             get_model_status=self.get_model_status,
             on_transcribe_youtube=self.transcribe_youtube_from_dialog,
-            on_transcribe_file=self.transcribe_file_from_dialog
+            on_transcribe_file=self.transcribe_file_from_dialog,
+            on_set_gpu_profile=self.set_gpu_profile,
+            get_gpu_profile=self.get_gpu_profile
         )
 
     def start(self):
@@ -82,6 +88,7 @@ class VoicePasteApp:
             return True
 
         del self.transcription_cache[key]
+        self._save_cache()
         return False
 
     def on_voice_hotkey(self, is_pressed: bool):
@@ -126,6 +133,7 @@ class VoicePasteApp:
                     print("Transcription copied to clipboard!")
 
                     self.transcription_cache[url] = (text, time.time())
+                    self._save_cache()
                     self._schedule_cache_cleanup()
                 else:
                     print("No transcription result")
@@ -139,42 +147,83 @@ class VoicePasteApp:
         threading.Thread(target=process_youtube, daemon=True).start()
 
     def on_file_hotkey(self):
-        def process_file():
+        def process_files():
             try:
-                file_path = self.clipboard_manager.get_file_path_from_clipboard()
-                if not file_path:
+                file_paths = self.clipboard_manager.get_file_paths_from_clipboard()
+                if not file_paths:
                     print("No file or file path in clipboard")
                     return
 
-                if not self.local_file_processor.is_valid_file_path(file_path):
-                    print(f"Not a valid audio/video file: {file_path}")
+                valid_files = [fp for fp in file_paths if self.local_file_processor.is_valid_file_path(fp)]
+                if not valid_files:
+                    print(f"No valid audio/video files in clipboard")
                     return
 
-                if self._try_use_cached_transcription(file_path):
-                    return
+                print(f"Found {len(valid_files)} file(s) to process")
+                sys.stdout.flush()
 
-                print(f"Processing file: {file_path}")
+                all_transcriptions = []
                 self.tray_icon.update_status("processing")
 
-                result = self.local_file_processor.process_file(file_path)
-                if not result:
-                    print("Failed to process file")
-                    self.tray_icon.update_status("idle")
-                    return
+                for idx, file_path in enumerate(valid_files, 1):
+                    cache_entry = self.transcription_cache.get(file_path, (None, None))
+                    cached_text, timestamp = cache_entry
+                    if cached_text and timestamp and time.time() - timestamp < self.cache_ttl:
+                        print(f"[{idx}/{len(valid_files)}] Using cached transcription for: {Path(file_path).name}")
+                        sys.stdout.flush()
+                        all_transcriptions.append({
+                            'filename': Path(file_path).name,
+                            'text': cached_text,
+                            'from_cache': True
+                        })
+                        continue
 
-                audio_data, filename = result
-                print(f"Transcribing: {filename}")
+                    print(f"[{idx}/{len(valid_files)}] Processing file: {file_path}")
+                    sys.stdout.flush()
 
-                text = self.transcriber.transcribe(audio_data)
-                if text:
-                    print(f"Transcription ({len(text)} chars): {text[:100]}...")
-                    self.clipboard_manager.copy_to_clipboard(text)
-                    print("Transcription copied to clipboard!")
+                    result = self.local_file_processor.process_file(file_path)
+                    if not result:
+                        print(f"Failed to process file: {file_path}")
+                        sys.stdout.flush()
+                        continue
 
-                    self.transcription_cache[file_path] = (text, time.time())
-                    self._schedule_cache_cleanup()
+                    audio_data, filename = result
+                    print(f"Transcribing: {filename}")
+                    sys.stdout.flush()
+
+                    text = self.transcriber.transcribe(audio_data)
+                    if text:
+                        print(f"Transcription ({len(text)} chars): {text[:100]}...")
+                        sys.stdout.flush()
+
+                        self.transcription_cache[file_path] = (text, time.time())
+                        self._save_cache()
+                        self._schedule_cache_cleanup()
+
+                        all_transcriptions.append({
+                            'filename': filename,
+                            'text': text,
+                            'from_cache': False
+                        })
+                    else:
+                        print(f"No transcription result for: {filename}")
+                        sys.stdout.flush()
+
+                if all_transcriptions:
+                    if len(all_transcriptions) == 1:
+                        final_text = all_transcriptions[0]['text']
+                    else:
+                        parts = []
+                        for trans in all_transcriptions:
+                            parts.append(f"=== {trans['filename']} ===\n{trans['text']}")
+                        final_text = "\n\n".join(parts)
+
+                    self.clipboard_manager.copy_to_clipboard(final_text)
+                    print(f"\n{len(all_transcriptions)} transcription(s) copied to clipboard!")
+                    sys.stdout.flush()
                 else:
-                    print("No transcription result")
+                    print("No transcriptions to copy")
+                    sys.stdout.flush()
 
                 self.tray_icon.update_status("idle")
 
@@ -182,7 +231,7 @@ class VoicePasteApp:
                 print(f"File transcription error: {e}")
                 self.tray_icon.update_status("idle")
 
-        threading.Thread(target=process_file, daemon=True).start()
+        threading.Thread(target=process_files, daemon=True).start()
 
     def _start_recording(self):
         with self.processing_lock:
@@ -241,6 +290,12 @@ class VoicePasteApp:
         self.transcriber.keep_model_loaded = not self.transcriber.keep_model_loaded
         status = "enabled" if self.transcriber.keep_model_loaded else "disabled"
         print(f"Keep model loaded: {status}")
+
+    def set_gpu_profile(self, profile: str):
+        self.transcriber.set_gpu_profile(profile)
+
+    def get_gpu_profile(self) -> str:
+        return self.transcriber.gpu_profile
 
     def get_model_status(self):
         if self.transcriber.model is None:
@@ -357,19 +412,40 @@ class VoicePasteApp:
                     ("All files", "*.*")
                 ]
 
-                file_path = filedialog.askopenfilename(
-                    title="Select Audio or Video File - VoicePaste",
+                file_paths = filedialog.askopenfilenames(
+                    title="Select Audio or Video File(s) - VoicePaste",
                     filetypes=filetypes
                 )
                 root.destroy()
 
-                if file_path:
-                    self.clipboard_manager.copy_to_clipboard(file_path)
+                if file_paths:
+                    self.clipboard_manager.copy_to_clipboard('\n'.join(file_paths))
                     self.on_file_hotkey()
             except Exception as e:
                 print(f"Error in file dialog: {e}")
 
         threading.Thread(target=process, daemon=True).start()
+
+    def _load_cache(self):
+        try:
+            if self.cache_file.exists():
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    current_time = time.time()
+                    for key, (text, timestamp) in data.items():
+                        if current_time - timestamp < self.cache_ttl:
+                            self.transcription_cache[key] = (text, timestamp)
+                    if self.transcription_cache:
+                        print(f"Loaded {len(self.transcription_cache)} cached transcription(s)")
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+
+    def _save_cache(self):
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.transcription_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Failed to save cache: {e}")
 
     def _schedule_cache_cleanup(self):
         if self.cache_cleanup_timer:
@@ -381,15 +457,17 @@ class VoicePasteApp:
 
     def _cleanup_cache(self):
         current_time = time.time()
-        urls_to_remove = []
+        keys_to_remove = []
 
-        for url, (_, timestamp) in self.transcription_cache.items():
+        for key, (_, timestamp) in self.transcription_cache.items():
             if current_time - timestamp >= self.cache_ttl:
-                urls_to_remove.append(url)
+                keys_to_remove.append(key)
 
-        for url in urls_to_remove:
-            del self.transcription_cache[url]
-            print(f"Removed cached transcription for: {url}")
+        for key in keys_to_remove:
+            del self.transcription_cache[key]
+            print(f"Removed cached transcription for: {key}")
+
+        self._save_cache()
 
         if self.transcription_cache:
             self._schedule_cache_cleanup()
@@ -399,6 +477,7 @@ class VoicePasteApp:
         self.is_running = False
         if self.cache_cleanup_timer:
             self.cache_cleanup_timer.cancel()
+        self._save_cache()
         self.hotkey_handler.stop()
         self.transcriber.shutdown()
         self.youtube_downloader.cleanup()

@@ -1,6 +1,6 @@
 import pyperclip
 import sys
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 
@@ -62,3 +62,46 @@ class ClipboardManager:
                 return text
 
         return None
+
+    @staticmethod
+    def get_file_paths_from_clipboard() -> List[str]:
+        file_paths = []
+
+        if sys.platform == 'win32':
+            try:
+                import win32clipboard
+                win32clipboard.OpenClipboard()
+                try:
+                    if win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_HDROP):
+                        files = win32clipboard.GetClipboardData(win32clipboard.CF_HDROP)
+                        if files:
+                            for file_path in files:
+                                if Path(file_path).is_file():
+                                    file_paths.append(file_path)
+                finally:
+                    win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+        elif sys.platform == 'darwin':
+            try:
+                from AppKit import NSPasteboard, NSFilenamesPboardType
+                pasteboard = NSPasteboard.generalPasteboard()
+                if NSFilenamesPboardType in pasteboard.types():
+                    files = pasteboard.propertyListForType_(NSFilenamesPboardType)
+                    if files:
+                        for file_path in files:
+                            if Path(file_path).is_file():
+                                file_paths.append(file_path)
+            except Exception:
+                pass
+
+        if not file_paths:
+            text = ClipboardManager.get_from_clipboard()
+            if text:
+                lines = text.strip().split('\n')
+                for line in lines:
+                    cleaned = line.strip().strip('"').strip("'")
+                    if Path(cleaned).is_file():
+                        file_paths.append(cleaned)
+
+        return file_paths

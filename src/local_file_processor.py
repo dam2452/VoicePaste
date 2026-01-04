@@ -1,4 +1,5 @@
 import tempfile
+import sys
 import numpy as np
 from pathlib import Path
 from scipy.io import wavfile
@@ -48,10 +49,9 @@ class LocalFileProcessor:
         filename = file_path.name
 
         try:
-            print(f"Processing file: {filename}")
-
             if ext in self.SUPPORTED_VIDEO or ext not in {'.wav'}:
-                print("Extracting audio with FFmpeg...")
+                print(f"Extracting audio with FFmpeg...")
+                sys.stdout.flush()
                 result = subprocess.run([
                     'ffmpeg',
                     '-i', str(file_path),
@@ -65,15 +65,18 @@ class LocalFileProcessor:
 
                 if result.returncode != 0:
                     print(f"FFmpeg error: {result.stderr}")
+                    sys.stdout.flush()
                     return None
 
                 if not temp_wav_path.exists():
                     print(f"Audio extraction failed: {temp_wav_path} not created")
+                    sys.stdout.flush()
                     return None
 
                 sample_rate, audio = wavfile.read(str(temp_wav_path))
             else:
-                print("Loading WAV file...")
+                print(f"Loading WAV file...")
+                sys.stdout.flush()
                 sample_rate, audio = wavfile.read(str(file_path))
 
             if audio.dtype == np.int16:
@@ -86,6 +89,7 @@ class LocalFileProcessor:
 
             if sample_rate != 16000:
                 print(f"Resampling from {sample_rate}Hz to 16000Hz...")
+                sys.stdout.flush()
                 num_samples = int(len(audio) * 16000 / sample_rate)
                 audio = resample(audio, num_samples)
                 sample_rate = 16000
@@ -99,6 +103,7 @@ class LocalFileProcessor:
 
             duration = len(audio) / sample_rate
             print(f"Audio loaded: {duration:.1f}s @ {sample_rate}Hz")
+            sys.stdout.flush()
             return audio.astype(np.float32), filename
 
         except subprocess.TimeoutExpired:

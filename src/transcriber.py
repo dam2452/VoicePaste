@@ -14,7 +14,8 @@ class Transcriber:
         compute_type: str = "float16",
         keep_model_loaded: bool = False,
         move_to_ram_after_seconds: int = 3600,
-        unload_after_seconds: int = 18000
+        unload_after_seconds: int = 18000,
+        gpu_profile: str = "standard"
     ):
         self.model_size = model_size
         self.preferred_device = device
@@ -31,6 +32,36 @@ class Transcriber:
         self.lock = threading.Lock()
         self.preload_thread: Optional[threading.Thread] = None
         self.is_preloading = False
+        self.gpu_profile = gpu_profile
+        self._set_quality_params()
+
+    def _set_quality_params(self):
+        if self.gpu_profile == "high_end":
+            self.beam_size = 10
+            self.patience = 1.5
+            self.temperature = 0.0
+            self.compression_ratio_threshold = 2.4
+            self.log_prob_threshold = -1.0
+            self.no_speech_threshold = 0.6
+        else:
+            self.beam_size = 5
+            self.patience = 1.0
+            self.temperature = 0.0
+            self.compression_ratio_threshold = 2.4
+            self.log_prob_threshold = -1.0
+            self.no_speech_threshold = 0.6
+
+    def set_gpu_profile(self, profile: str):
+        if profile not in ["standard", "high_end"]:
+            print(f"Invalid GPU profile: {profile}. Use 'standard' or 'high_end'")
+            return
+        self.gpu_profile = profile
+        self._set_quality_params()
+        print(f"GPU profile set to: {profile}")
+        if profile == "high_end":
+            print("Quality params: beam_size=10, patience=1.5 (RTX 3090+ - better quality, same speed)")
+        else:
+            print("Quality params: beam_size=5, patience=1.0 (RTX 2080S - balanced)")
 
     def load_model(self, target_device: Optional[str] = None):
         with self.lock:
@@ -80,7 +111,12 @@ class Transcriber:
         segments, info = self.model.transcribe(
             audio_data,
             language=language,
-            beam_size=5,
+            beam_size=self.beam_size,
+            patience=self.patience,
+            temperature=self.temperature,
+            compression_ratio_threshold=self.compression_ratio_threshold,
+            log_prob_threshold=self.log_prob_threshold,
+            no_speech_threshold=self.no_speech_threshold,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500)
         )

@@ -35,13 +35,24 @@ def main():
         action="store_true",
         help="List available audio devices and exit"
     )
+    parser.add_argument(
+        "--gpu-profile",
+        type=str,
+        choices=["standard", "high_end"],
+        default="standard",
+        help="GPU profile: 'standard' for RTX 2080S (8GB), 'high_end' for RTX 3090+ (24GB)"
+    )
     args = parser.parse_args()
 
     if args.list_devices:
         list_devices()
         sys.exit(0)
 
-    app = VoicePasteApp(keep_model_loaded=args.keep_model_loaded, device_id=args.device)
+    app = VoicePasteApp(
+        keep_model_loaded=args.keep_model_loaded,
+        device_id=args.device,
+        gpu_profile=args.gpu_profile
+    )
     try:
         app.start()
     except Exception as e:

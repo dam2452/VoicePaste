@@ -12,7 +12,9 @@ class TrayIcon:
         on_toggle_keep_model: Callable = None,
         get_model_status: Callable = None,
         on_transcribe_youtube: Callable = None,
-        on_transcribe_file: Callable = None
+        on_transcribe_file: Callable = None,
+        on_set_gpu_profile: Callable = None,
+        get_gpu_profile: Callable = None
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
@@ -20,6 +22,8 @@ class TrayIcon:
         self.get_model_status = get_model_status
         self.on_transcribe_youtube = on_transcribe_youtube
         self.on_transcribe_file = on_transcribe_file
+        self.on_set_gpu_profile = on_set_gpu_profile
+        self.get_gpu_profile = get_gpu_profile
         self.icon = None
         self.status = "idle"
         self.thread = None
@@ -172,6 +176,24 @@ class TrayIcon:
                     checked=lambda _: self.keep_model_enabled,
                     enabled=bool(self.on_toggle_keep_model)
                 ),
+                pystray.MenuItem(
+                    "GPU Profile",
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            "Standard (RTX 2080S 8GB)",
+                            lambda: self._set_gpu_profile_action("standard"),
+                            checked=lambda _: self._is_gpu_profile("standard"),
+                            radio=True
+                        ),
+                        pystray.MenuItem(
+                            "High-End (RTX 3090+ 24GB)",
+                            lambda: self._set_gpu_profile_action("high_end"),
+                            checked=lambda _: self._is_gpu_profile("high_end"),
+                            radio=True
+                        )
+                    ),
+                    enabled=bool(self.on_set_gpu_profile)
+                ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Exit", self._quit_action)
             )
@@ -242,6 +264,17 @@ class TrayIcon:
     def _transcribe_file_action(self, _=None):
         if self.on_transcribe_file:
             self.on_transcribe_file()
+
+    def _set_gpu_profile_action(self, profile: str):
+        if self.on_set_gpu_profile:
+            self.on_set_gpu_profile(profile)
+            if self.icon:
+                self.icon.update_menu()
+
+    def _is_gpu_profile(self, profile: str) -> bool:
+        if self.get_gpu_profile:
+            return self.get_gpu_profile() == profile
+        return False
 
     def _quit_action(self, _=None):
         if self.icon:
