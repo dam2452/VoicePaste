@@ -6,11 +6,11 @@ import time
 from typing import (
     Dict,
     Optional,
-    Tuple,
 )
 
 from src.audio_recorder import AudioRecorder
 from src.clipboard_manager import ClipboardManager
+from src.history_window import HistoryWindow
 from src.hotkey_handler import HotkeyHandler
 from src.local_file_processor import LocalFileProcessor
 from src.transcriber import Transcriber
@@ -18,7 +18,7 @@ from src.tray_icon import TrayIcon
 from src.youtube_downloader import YouTubeDownloader
 
 
-class VoicePasteApp:
+class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
     def __init__(self, keep_model_loaded: bool = False, device_id: Optional[int] = None, gpu_profile: str = "standard"):
         self.audio_recorder = AudioRecorder(device_id=device_id)
         self.transcriber = Transcriber(keep_model_loaded=keep_model_loaded, gpu_profile=gpu_profile)
@@ -35,11 +35,17 @@ class VoicePasteApp:
         self.shutdown_event = threading.Event()
         self.is_recording = False
 
-        self.transcription_cache: Dict[str, Tuple[str, float]] = {}
+        self.transcription_cache: Dict[str, Dict] = {}
         self.cache_ttl = 86400
         self.cache_file = Path.home() / '.voicepaste_cache.json'
         self.cache_cleanup_timer: Optional[threading.Timer] = None
         self._load_cache()
+
+        self.history_window = HistoryWindow(
+            get_history=self.get_history,
+            copy_from_history=self.copy_from_history,
+            delete_from_history=self.delete_from_history,
+        )
 
         self.tray_icon = TrayIcon(
             on_quit=self.quit,
@@ -50,6 +56,7 @@ class VoicePasteApp:
             on_transcribe_file=self.transcribe_file_from_dialog,
             on_set_gpu_profile=self.set_gpu_profile,
             get_gpu_profile=self.get_gpu_profile,
+            on_show_history=self.show_history,
         )
 
     def start(self):
@@ -84,10 +91,10 @@ class VoicePasteApp:
         if key not in self.transcription_cache:
             return False
 
-        cached_text, timestamp = self.transcription_cache[key]
-        if time.time() - timestamp < self.cache_ttl:
+        cached_entry = self.transcription_cache[key]
+        if time.time() - cached_entry['timestamp'] < self.cache_ttl:
             print(f"Using cached transcription for: {key}")
-            self.clipboard_manager.copy_to_clipboard(cached_text)
+            self.clipboard_manager.copy_to_clipboard(cached_entry['text'])
             print("Cached transcription copied to clipboard!")
             return True
 
@@ -137,7 +144,12 @@ class VoicePasteApp:
                     self.clipboard_manager.copy_to_clipboard(text)
                     print("Transcription copied to clipboard!")
 
-                    self.transcription_cache[url] = (text, time.time())
+                    self.transcription_cache[url] = {
+                        'text': text,
+                        'timestamp': time.time(),
+                        'source_type': 'youtube',
+                        'title': title,
+                    }
                     self._save_cache()
                     self._schedule_cache_cleanup()
                 else:
@@ -172,14 +184,13 @@ class VoicePasteApp:
                 self.tray_icon.update_status("processing")
 
                 for idx, file_path in enumerate(valid_files, 1):
-                    cache_entry = self.transcription_cache.get(file_path, (None, None))
-                    cached_text, timestamp = cache_entry
-                    if cached_text and timestamp and time.time() - timestamp < self.cache_ttl:
+                    cache_entry = self.transcription_cache.get(file_path)
+                    if cache_entry and time.time() - cache_entry['timestamp'] < self.cache_ttl:
                         print(f"[{idx}/{len(valid_files)}] Using cached transcription for: {Path(file_path).name}")
                         sys.stdout.flush()
                         all_transcriptions.append({
                             'filename': Path(file_path).name,
-                            'text': cached_text,
+                            'text': cache_entry['text'],
                             'from_cache': True,
                         })
                         continue
@@ -202,7 +213,12 @@ class VoicePasteApp:
                         print(f"Transcription ({len(text)} chars): {text[:100]}...")
                         sys.stdout.flush()
 
-                        self.transcription_cache[file_path] = (text, time.time())
+                        self.transcription_cache[file_path] = {
+                            'text': text,
+                            'timestamp': time.time(),
+                            'source_type': 'file',
+                            'title': filename,
+                        }
                         self._save_cache()
                         self._schedule_cache_cleanup()
 
@@ -289,6 +305,16 @@ class VoicePasteApp:
                         print(f"Transcription: {text}")
                         self.clipboard_manager.copy_to_clipboard(text)
                         print("Copied to clipboard!")
+
+                        cache_key = f"voice_{int(time.time() * 1000)}"
+                        self.transcription_cache[cache_key] = {
+                            'text': text,
+                            'timestamp': time.time(),
+                            'source_type': 'voice',
+                            'title': f"Voice Recording ({duration:.1f}s)",
+                        }
+                        self._save_cache()
+                        self._schedule_cache_cleanup()
                     else:
                         print("No transcription result (empty text from Whisper)")
                 except Exception as e:  # pylint: disable=broad-exception-caught
@@ -314,6 +340,39 @@ class VoicePasteApp:
 
     def get_gpu_profile(self) -> str:
         return self.transcriber.gpu_profile
+
+    def get_history(self):
+        history = []
+        for key, entry in self.transcription_cache.items():
+            history.append({
+                'key': key,
+                'text': entry['text'],
+                'timestamp': entry['timestamp'],
+                'source_type': entry['source_type'],
+                'title': entry['title'],
+            })
+        history.sort(key=lambda x: x['timestamp'], reverse=True)
+        return history
+
+    def copy_from_history(self, key: str):
+        if key in self.transcription_cache:
+            text = self.transcription_cache[key]['text']
+            self.clipboard_manager.copy_to_clipboard(text)
+            print(f"Copied from history: {self.transcription_cache[key]['title']}")
+            return True
+        return False
+
+    def delete_from_history(self, key: str):
+        if key in self.transcription_cache:
+            title = self.transcription_cache[key]['title']
+            del self.transcription_cache[key]
+            self._save_cache()
+            print(f"Deleted from history: {title}")
+            return True
+        return False
+
+    def show_history(self):
+        self.history_window.show()
 
     def get_model_status(self):
         if self.transcriber.model is None:
@@ -451,9 +510,19 @@ class VoicePasteApp:
                 with open(self.cache_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     current_time = time.time()
-                    for key, (text, timestamp) in data.items():
-                        if current_time - timestamp < self.cache_ttl:
-                            self.transcription_cache[key] = (text, timestamp)
+                    for key, value in data.items():
+                        if isinstance(value, dict):
+                            if current_time - value['timestamp'] < self.cache_ttl:
+                                self.transcription_cache[key] = value
+                        elif isinstance(value, (list, tuple)) and len(value) == 2:
+                            text, timestamp = value
+                            if current_time - timestamp < self.cache_ttl:
+                                self.transcription_cache[key] = {
+                                    'text': text,
+                                    'timestamp': timestamp,
+                                    'source_type': 'unknown',
+                                    'title': 'Legacy Entry',
+                                }
                     if self.transcription_cache:
                         print(f"Loaded {len(self.transcription_cache)} cached transcription(s)")
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -478,8 +547,8 @@ class VoicePasteApp:
         current_time = time.time()
         keys_to_remove = []
 
-        for key, (_, timestamp) in self.transcription_cache.items():
-            if current_time - timestamp >= self.cache_ttl:
+        for key, entry in self.transcription_cache.items():
+            if current_time - entry['timestamp'] >= self.cache_ttl:
                 keys_to_remove.append(key)
 
         for key in keys_to_remove:

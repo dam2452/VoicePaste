@@ -27,7 +27,7 @@ class ClipboardManager:  # pylint: disable=too-many-nested-blocks
     @staticmethod
     def get_file_path_from_clipboard() -> Optional[str]:
         if sys.platform == 'win32':
-            # pylint: disable=import-outside-toplevel,c-extension-no-member
+            # pylint: disable=import-outside-toplevel
             try:
                 import win32clipboard
                 win32clipboard.OpenClipboard()
@@ -72,7 +72,7 @@ class ClipboardManager:  # pylint: disable=too-many-nested-blocks
         file_paths = []
 
         if sys.platform == 'win32':
-            # pylint: disable=import-outside-toplevel,c-extension-no-member
+            # pylint: disable=import-outside-toplevel
             try:
                 import win32clipboard
                 win32clipboard.OpenClipboard()

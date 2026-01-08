@@ -19,6 +19,7 @@ class TrayIcon:
         on_transcribe_file: Callable = None,
         on_set_gpu_profile: Callable = None,
         get_gpu_profile: Callable = None,
+        on_show_history: Callable = None,
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
@@ -28,6 +29,7 @@ class TrayIcon:
         self.on_transcribe_file = on_transcribe_file
         self.on_set_gpu_profile = on_set_gpu_profile
         self.get_gpu_profile = get_gpu_profile
+        self.on_show_history = on_show_history
         self.icon = None
         self.status = "idle"
         self.thread = None
@@ -191,6 +193,12 @@ class TrayIcon:
                 ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
+                    "Show History...",
+                    self._show_history_action,
+                    enabled=bool(self.on_show_history),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
                     "Keep Model in Memory",
                     self._toggle_keep_model_action,
                     checked=lambda _: self.keep_model_enabled,
@@ -284,6 +292,10 @@ class TrayIcon:
     def _transcribe_file_action(self, _=None):
         if self.on_transcribe_file:
             self.on_transcribe_file()
+
+    def _show_history_action(self, _=None):
+        if self.on_show_history:
+            self.on_show_history()
 
     def _set_gpu_profile_action(self, profile: str):
         if self.on_set_gpu_profile:
