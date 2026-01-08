@@ -1,10 +1,16 @@
+from pathlib import Path
 import re
 import tempfile
+from typing import (
+    Optional,
+    Tuple,
+)
+
 import numpy as np
-from pathlib import Path
-import yt_dlp
 from scipy.io import wavfile
-from typing import Optional, Tuple
+import yt_dlp
+
+from src.audio_utils import normalize_audio
 
 
 class YouTubeDownloader:
@@ -15,7 +21,7 @@ class YouTubeDownloader:
     def is_youtube_url(url: str) -> bool:
         youtube_patterns = [
             r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/',
-            r'(https?://)?(www\.)?youtu\.be/'
+            r'(https?://)?(www\.)?youtu\.be/',
         ]
         return any(re.match(pattern, url) for pattern in youtube_patterns)
 
@@ -26,14 +32,14 @@ class YouTubeDownloader:
 
         temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
 
-        # noinspection PyBroadException
         try:
             if temp_audio_path.exists():
                 temp_audio_path.unlink()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         ydl_opts = {
+            'format': 'bestaudio/worst',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'wav',
@@ -45,6 +51,7 @@ class YouTubeDownloader:
             'js_runtimes': {'node': {}},
         }
 
+        # pylint: disable=too-many-try-statements
         try:
             print(f"Downloading audio from YouTube: {url}")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -58,45 +65,29 @@ class YouTubeDownloader:
 
             print("Converting audio to 16kHz mono...")
             sample_rate, audio = wavfile.read(str(temp_audio_path))
+            audio, sample_rate = normalize_audio(audio, sample_rate, 16000)
 
-            if audio.dtype == np.int16:
-                audio = audio.astype(np.float32) / 32768.0
-            elif audio.dtype == np.int32:
-                audio = audio.astype(np.float32) / 2147483648.0
-
-            if len(audio.shape) > 1:
-                audio = audio.mean(axis=1)
-
-            if sample_rate != 16000:
-                from scipy.signal import resample
-                num_samples = int(len(audio) * 16000 / sample_rate)
-                audio = resample(audio, num_samples)
-                sample_rate = 16000
-
-            # noinspection PyBroadException
             try:
                 temp_audio_path.unlink()
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
             print(f"Audio converted: {len(audio)/sample_rate:.1f}s @ {sample_rate}Hz")
-            return audio.astype(np.float32), title
+            return audio, title
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error downloading YouTube audio: {e}")
-            # noinspection PyBroadException
             try:
                 if temp_audio_path.exists():
                     temp_audio_path.unlink()
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
             return None
 
     def cleanup(self):
         temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
-        # noinspection PyBroadException
         try:
             if temp_audio_path.exists():
                 temp_audio_path.unlink()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass

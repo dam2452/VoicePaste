@@ -1,17 +1,21 @@
-import threading
-import sys
-import time
 import json
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+import sys
+import threading
+import time
+from typing import (
+    Dict,
+    Optional,
+    Tuple,
+)
 
 from src.audio_recorder import AudioRecorder
-from src.transcriber import Transcriber
 from src.clipboard_manager import ClipboardManager
 from src.hotkey_handler import HotkeyHandler
+from src.local_file_processor import LocalFileProcessor
+from src.transcriber import Transcriber
 from src.tray_icon import TrayIcon
 from src.youtube_downloader import YouTubeDownloader
-from src.local_file_processor import LocalFileProcessor
 
 
 class VoicePasteApp:
@@ -24,7 +28,7 @@ class VoicePasteApp:
         self.hotkey_handler = HotkeyHandler(
             voice_callback=self.on_voice_hotkey,
             youtube_callback=self.on_youtube_hotkey,
-            file_callback=self.on_file_hotkey
+            file_callback=self.on_file_hotkey,
         )
         self.is_running = True
         self.processing_lock = threading.Lock()
@@ -45,7 +49,7 @@ class VoicePasteApp:
             on_transcribe_youtube=self.transcribe_youtube_from_dialog,
             on_transcribe_file=self.transcribe_file_from_dialog,
             on_set_gpu_profile=self.set_gpu_profile,
-            get_gpu_profile=self.get_gpu_profile
+            get_gpu_profile=self.get_gpu_profile,
         )
 
     def start(self):
@@ -99,6 +103,7 @@ class VoicePasteApp:
 
     def on_youtube_hotkey(self):
         def process_youtube():
+            # pylint: disable=too-many-try-statements
             try:
                 url = self.clipboard_manager.get_from_clipboard()
                 if not url or not isinstance(url, str):
@@ -140,14 +145,15 @@ class VoicePasteApp:
 
                 self.tray_icon.update_status("idle")
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"YouTube transcription error: {e}")
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_youtube, daemon=True).start()
 
-    def on_file_hotkey(self):
+    def on_file_hotkey(self):  # pylint: disable=too-many-statements
         def process_files():
+            # pylint: disable=too-many-try-statements,too-many-statements
             try:
                 file_paths = self.clipboard_manager.get_file_paths_from_clipboard()
                 if not file_paths:
@@ -156,7 +162,7 @@ class VoicePasteApp:
 
                 valid_files = [fp for fp in file_paths if self.local_file_processor.is_valid_file_path(fp)]
                 if not valid_files:
-                    print(f"No valid audio/video files in clipboard")
+                    print("No valid audio/video files in clipboard")
                     return
 
                 print(f"Found {len(valid_files)} file(s) to process")
@@ -174,7 +180,7 @@ class VoicePasteApp:
                         all_transcriptions.append({
                             'filename': Path(file_path).name,
                             'text': cached_text,
-                            'from_cache': True
+                            'from_cache': True,
                         })
                         continue
 
@@ -203,7 +209,7 @@ class VoicePasteApp:
                         all_transcriptions.append({
                             'filename': filename,
                             'text': text,
-                            'from_cache': False
+                            'from_cache': False,
                         })
                     else:
                         print(f"No transcription result for: {filename}")
@@ -227,7 +233,7 @@ class VoicePasteApp:
 
                 self.tray_icon.update_status("idle")
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"File transcription error: {e}")
                 self.tray_icon.update_status("idle")
 
@@ -245,7 +251,7 @@ class VoicePasteApp:
                 print(f"Error starting recording: {e}")
                 self.is_recording = False
                 self.tray_icon.update_status("idle")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"Unexpected error: {e}")
                 self.is_recording = False
                 self.tray_icon.update_status("idle")
@@ -260,10 +266,22 @@ class VoicePasteApp:
 
                 audio_data = self.audio_recorder.stop_recording()
 
-                if audio_data is None or len(audio_data) < 1600:
+                if audio_data is None:
+                    print("No audio data captured!")
+                    self.tray_icon.update_status("idle")
+                    return
+
+                duration = len(audio_data) / 16000
+                print(f"Recorded {duration:.2f}s of audio, {len(audio_data)} samples")
+
+                if len(audio_data) < 1600:
                     print("Recording too short, ignoring...")
                     self.tray_icon.update_status("idle")
                     return
+
+                import numpy as np  # pylint: disable=import-outside-toplevel
+                rms = np.sqrt(np.mean(audio_data**2))
+                print(f"Audio RMS level: {rms:.6f}")
 
                 try:
                     text = self.transcriber.transcribe(audio_data)
@@ -272,8 +290,8 @@ class VoicePasteApp:
                         self.clipboard_manager.copy_to_clipboard(text)
                         print("Copied to clipboard!")
                     else:
-                        print("No transcription result")
-                except Exception as e:
+                        print("No transcription result (empty text from Whisper)")
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print(f"Transcription error: {e}")
 
                 self.tray_icon.update_status("idle")
@@ -300,15 +318,15 @@ class VoicePasteApp:
     def get_model_status(self):
         if self.transcriber.model is None:
             return "Not loaded"
-        elif self.transcriber.current_device == "cuda":
+        if self.transcriber.current_device == "cuda":
             return "VRAM (GPU)"
-        elif self.transcriber.current_device == "cpu":
+        if self.transcriber.current_device == "cpu":
             return "RAM (CPU)"
-        else:
-            return "Unknown"
+        return "Unknown"
 
     def transcribe_youtube_from_dialog(self):
         def process():
+            # pylint: disable=too-many-try-statements,import-outside-toplevel
             try:
                 import tkinter as tk
                 from tkinter import ttk
@@ -320,7 +338,7 @@ class VoicePasteApp:
 
                 try:
                     dialog.iconbitmap(default='icon.ico')
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     pass
 
                 dialog.configure(bg='#f0f0f0')
@@ -331,7 +349,7 @@ class VoicePasteApp:
                 title_label = ttk.Label(
                     main_frame,
                     text="Enter YouTube URL",
-                    font=('Segoe UI', 11, 'bold')
+                    font=('Segoe UI', 11, 'bold'),
                 )
                 title_label.pack(pady=(0, 10))
 
@@ -340,7 +358,7 @@ class VoicePasteApp:
                     main_frame,
                     textvariable=url_var,
                     font=('Segoe UI', 10),
-                    width=50
+                    width=50,
                 )
                 url_entry.pack(pady=10, ipady=5)
                 url_entry.focus()
@@ -361,7 +379,7 @@ class VoicePasteApp:
                     button_frame,
                     text="Transcribe",
                     command=on_ok,
-                    width=12
+                    width=12,
                 )
                 ok_button.pack(side=tk.LEFT, padx=5)
 
@@ -369,7 +387,7 @@ class VoicePasteApp:
                     button_frame,
                     text="Cancel",
                     command=on_cancel,
-                    width=12
+                    width=12,
                 )
                 cancel_button.pack(side=tk.LEFT, padx=5)
 
@@ -386,13 +404,14 @@ class VoicePasteApp:
                 if result['url']:
                     self.clipboard_manager.copy_to_clipboard(result['url'])
                     self.on_youtube_hotkey()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"Error in YouTube dialog: {e}")
 
         threading.Thread(target=process, daemon=True).start()
 
     def transcribe_file_from_dialog(self):
         def process():
+            # pylint: disable=too-many-try-statements,import-outside-toplevel
             try:
                 import tkinter as tk
                 from tkinter import filedialog
@@ -402,26 +421,26 @@ class VoicePasteApp:
 
                 try:
                     root.iconbitmap(default='icon.ico')
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     pass
 
                 filetypes = [
                     ("Audio/Video files", "*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma *.mp4 *.avi *.mkv *.mov *.wmv *.flv *.webm *.m4v"),
                     ("Audio files", "*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma"),
                     ("Video files", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv *.webm *.m4v"),
-                    ("All files", "*.*")
+                    ("All files", "*.*"),
                 ]
 
                 file_paths = filedialog.askopenfilenames(
                     title="Select Audio or Video File(s) - VoicePaste",
-                    filetypes=filetypes
+                    filetypes=filetypes,
                 )
                 root.destroy()
 
                 if file_paths:
                     self.clipboard_manager.copy_to_clipboard('\n'.join(file_paths))
                     self.on_file_hotkey()
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"Error in file dialog: {e}")
 
         threading.Thread(target=process, daemon=True).start()
@@ -437,14 +456,14 @@ class VoicePasteApp:
                             self.transcription_cache[key] = (text, timestamp)
                     if self.transcription_cache:
                         print(f"Loaded {len(self.transcription_cache)} cached transcription(s)")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Failed to load cache: {e}")
 
     def _save_cache(self):
         try:
             with open(self.cache_file, 'w', encoding='utf-8') as f:
                 json.dump(self.transcription_cache, f, ensure_ascii=False, indent=2)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Failed to save cache: {e}")
 
     def _schedule_cache_cleanup(self):

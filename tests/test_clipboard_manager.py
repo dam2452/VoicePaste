@@ -1,6 +1,7 @@
-from src.clipboard_manager import ClipboardManager
 from pathlib import Path
 import tempfile
+
+from src.clipboard_manager import ClipboardManager
 
 
 def test_copy_to_clipboard():

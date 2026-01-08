@@ -25,7 +25,7 @@ def test_transcriber_initialization_with_custom_timers():
         device="cpu",
         compute_type="int8",
         move_to_ram_after_seconds=60,
-        unload_after_seconds=120
+        unload_after_seconds=120,
     )
     assert transcriber.move_to_ram_after_seconds == 60
     assert transcriber.unload_after_seconds == 120
@@ -36,7 +36,7 @@ def test_transcriber_initialization_with_keep_loaded():
         model_size="tiny",
         device="cpu",
         compute_type="int8",
-        keep_model_loaded=True
+        keep_model_loaded=True,
     )
     assert transcriber.keep_model_loaded is True
 
@@ -92,7 +92,7 @@ def test_transcriber_timers_cancelled_on_shutdown():
         device="cpu",
         compute_type="int8",
         move_to_ram_after_seconds=1,
-        unload_after_seconds=2
+        unload_after_seconds=2,
     )
     transcriber.load_model()
     transcriber._schedule_memory_management()
@@ -108,7 +108,7 @@ def test_transcriber_schedule_memory_management_cpu():
         device="cpu",
         compute_type="int8",
         move_to_ram_after_seconds=60,
-        unload_after_seconds=120
+        unload_after_seconds=120,
     )
     transcriber.load_model()
     transcriber._schedule_memory_management()
@@ -123,7 +123,7 @@ def test_transcriber_auto_move_to_ram():
         device="cpu",
         compute_type="int8",
         move_to_ram_after_seconds=1,
-        unload_after_seconds=2
+        unload_after_seconds=2,
     )
     transcriber.load_model()
     transcriber.current_device = "cuda"
@@ -138,7 +138,7 @@ def test_transcriber_auto_unload():
     transcriber = Transcriber(
         model_size="tiny",
         device="cpu",
-        compute_type="int8"
+        compute_type="int8",
     )
     transcriber.load_model()
     assert transcriber.model is not None
@@ -152,7 +152,7 @@ def test_transcriber_keep_model_loaded_prevents_unload():
         model_size="tiny",
         device="cpu",
         compute_type="int8",
-        keep_model_loaded=True
+        keep_model_loaded=True,
     )
     transcriber.load_model()
     assert transcriber.model is not None

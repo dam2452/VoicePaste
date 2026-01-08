@@ -1,12 +1,13 @@
-import numpy as np
+import gc
 import threading
 import time
-import gc
-from faster_whisper import WhisperModel
 from typing import Optional
 
+from faster_whisper import WhisperModel
+import numpy as np
 
-class Transcriber:
+
+class Transcriber:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         model_size: str = "turbo",
@@ -15,7 +16,7 @@ class Transcriber:
         keep_model_loaded: bool = False,
         move_to_ram_after_seconds: int = 3600,
         unload_after_seconds: int = 18000,
-        gpu_profile: str = "standard"
+        gpu_profile: str = "standard",
     ):
         self.model_size = model_size
         self.preferred_device = device
@@ -74,18 +75,18 @@ class Transcriber:
                     self.model = WhisperModel(
                         self.model_size,
                         device=str(device),
-                        compute_type=compute_type
+                        compute_type=compute_type,
                     )
                     self.current_device = device
                     print(f"Model loaded successfully on {device.upper()}!")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     if device == "cuda":
                         print(f"Failed to load model on CUDA: {e}")
                         print("Falling back to CPU...")
                         self.model = WhisperModel(
                             self.model_size,
                             device="cpu",
-                            compute_type=self.cpu_compute_type
+                            compute_type=self.cpu_compute_type,
                         )
                         self.current_device = "cpu"
                         self.preferred_device = "cpu"
@@ -108,7 +109,8 @@ class Transcriber:
         self.last_used_time = time.time()
         self._cancel_all_timers()
 
-        segments, info = self.model.transcribe(
+        print(f"Transcribing {len(audio_data)} samples...")
+        segments, _ = self.model.transcribe(
             audio_data,
             language=language,
             beam_size=self.beam_size,
@@ -118,12 +120,17 @@ class Transcriber:
             log_prob_threshold=self.log_prob_threshold,
             no_speech_threshold=self.no_speech_threshold,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500)
+            vad_parameters={"min_silence_duration_ms": 500},
         )
 
         text_parts = []
+        segment_count = 0
         for segment in segments:
+            segment_count += 1
+            print(f"Segment {segment_count}: '{segment.text}' (confidence: {segment.avg_logprob:.2f})")
             text_parts.append(segment.text)
+
+        print(f"Total segments detected: {segment_count}")
 
         if not self.keep_model_loaded:
             self._schedule_memory_management()
@@ -149,7 +156,7 @@ class Transcriber:
                 self.model = WhisperModel(
                     self.model_size,
                     device="cpu",
-                    compute_type=self.cpu_compute_type
+                    compute_type=self.cpu_compute_type,
                 )
                 self.current_device = "cpu"
                 print("Model moved to RAM (CPU)!")
@@ -165,16 +172,16 @@ class Transcriber:
                     self.model = WhisperModel(
                         self.model_size,
                         device="cuda",
-                        compute_type=self.gpu_compute_type
+                        compute_type=self.gpu_compute_type,
                     )
                     self.current_device = "cuda"
                     print("Model moved to VRAM (GPU)!")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print(f"Failed to move to GPU: {e}, keeping on CPU")
                     self.model = WhisperModel(
                         self.model_size,
                         device="cpu",
-                        compute_type=self.cpu_compute_type
+                        compute_type=self.cpu_compute_type,
                     )
                     self.current_device = "cpu"
 

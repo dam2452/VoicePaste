@@ -1,7 +1,8 @@
-import pyaudio
-import numpy as np
 import threading
 from typing import Optional
+
+import numpy as np
+import pyaudio
 from scipy import signal
 
 
@@ -20,14 +21,29 @@ class AudioRecorder:
         print(f"Will resample to: {self.target_sample_rate} Hz for Whisper")
 
     def _find_input_device(self) -> Optional[int]:
+        # pylint: disable=too-many-try-statements
         try:
+            nvidia_broadcast_device = None
+            first_input_device = None
+
             for i in range(self.pyaudio_instance.get_device_count()):
                 device_info = self.pyaudio_instance.get_device_info_by_index(i)
                 if device_info['maxInputChannels'] > 0:
-                    print(f"Auto-detected input device: {device_info['name']}")
-                    return i
+                    if first_input_device is None:
+                        first_input_device = i
+
+                    if 'NVIDIA Broadcast' in device_info['name'] or 'nvidia broadcast' in device_info['name'].lower():
+                        nvidia_broadcast_device = i
+                        print(f"Auto-detected NVIDIA Broadcast: {device_info['name']}")
+                        return nvidia_broadcast_device
+
+            if first_input_device is not None:
+                device_info = self.pyaudio_instance.get_device_info_by_index(first_input_device)
+                print(f"Auto-detected input device: {device_info['name']}")
+                return first_input_device
+
             return None
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error finding input device: {e}")
             return None
 
@@ -35,12 +51,11 @@ class AudioRecorder:
         if self.device_id is None:
             return self.target_sample_rate
 
-        # noinspection PyBroadException
         try:
             device_info = self.pyaudio_instance.get_device_info_by_index(self.device_id)
             native_rate = int(device_info['defaultSampleRate'])
             return native_rate
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return 48000
 
     def start_recording(self):
@@ -61,17 +76,17 @@ class AudioRecorder:
                 input=True,
                 input_device_index=self.device_id,
                 frames_per_buffer=1024,
-                stream_callback=self._audio_callback
+                stream_callback=self._audio_callback,
             )
             self.stream.start_stream()
         except Exception as e:
             self.is_recording = False
-            print(f"\nAvailable audio devices:")
+            print("\nAvailable audio devices:")
             for i in range(self.pyaudio_instance.get_device_count()):
                 info = self.pyaudio_instance.get_device_info_by_index(i)
                 if info['maxInputChannels'] > 0:
                     print(f"  {i}: {info['name']}")
-            raise RuntimeError(f"Failed to start audio recording: {e}")
+            raise RuntimeError(f"Failed to start audio recording: {e}") from e
 
     def stop_recording(self) -> Optional[np.ndarray]:
         with self.lock:
@@ -94,8 +109,7 @@ class AudioRecorder:
             return audio_float
         return None
 
-    # noinspection PyUnusedLocal
-    def _audio_callback(self, in_data, frame_count, time_info, status):
+    def _audio_callback(self, in_data, frame_count, time_info, status):  # pylint: disable=unused-argument
         if self.is_recording:
             self.audio_data.append(in_data)
         return in_data, pyaudio.paContinue
@@ -108,12 +122,11 @@ class AudioRecorder:
         return devices
 
     def get_device_info(self):
-        # noinspection PyBroadException
         try:
             if self.device_id is not None:
                 return self.pyaudio_instance.get_device_info_by_index(self.device_id)
             return None
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return None
 
     def __del__(self):

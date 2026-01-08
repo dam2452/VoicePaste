@@ -1,6 +1,7 @@
 import threading
-from pynput import keyboard
 from typing import Callable
+
+from pynput import keyboard
 
 
 class HotkeyHandler:
@@ -8,7 +9,7 @@ class HotkeyHandler:
         self,
         voice_callback: Callable,
         youtube_callback: Callable = None,
-        file_callback: Callable = None
+        file_callback: Callable = None,
     ):
         self.voice_callback = voice_callback
         self.youtube_callback = youtube_callback
@@ -23,7 +24,7 @@ class HotkeyHandler:
     def start(self):
         self.listener = keyboard.Listener(
             on_press=self._on_press,
-            on_release=self._on_release
+            on_release=self._on_release,
         )
         self.listener.start()
 
@@ -32,7 +33,7 @@ class HotkeyHandler:
             self.listener.stop()
 
     def _on_press(self, key):
-        # noinspection PyBroadException
+        # pylint: disable=too-many-try-statements
         try:
             self.current_keys.add(key)
 
@@ -50,11 +51,10 @@ class HotkeyHandler:
                 self.file_hotkey_triggered = True
                 if self.file_callback:
                     threading.Thread(target=self.file_callback, daemon=True).start()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
     def _on_release(self, key):
-        # noinspection PyBroadException
         try:
             if key in self.current_keys:
                 self.current_keys.remove(key)
@@ -64,12 +64,12 @@ class HotkeyHandler:
                 self.youtube_hotkey_triggered = False
             if not self._is_file_hotkey_pressed():
                 self.file_hotkey_triggered = False
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
     def _is_voice_hotkey_pressed(self):
         has_shift = any(
-            k == keyboard.Key.shift or k == keyboard.Key.shift_r
+            k in (keyboard.Key.shift, keyboard.Key.shift_r)
             for k in self.current_keys
         )
         has_v = any(
@@ -80,7 +80,7 @@ class HotkeyHandler:
 
     def _is_youtube_hotkey_pressed(self):
         has_shift = any(
-            k == keyboard.Key.shift or k == keyboard.Key.shift_r
+            k in (keyboard.Key.shift, keyboard.Key.shift_r)
             for k in self.current_keys
         )
         has_y = any(
@@ -91,7 +91,7 @@ class HotkeyHandler:
 
     def _is_file_hotkey_pressed(self):
         has_shift = any(
-            k == keyboard.Key.shift or k == keyboard.Key.shift_r
+            k in (keyboard.Key.shift, keyboard.Key.shift_r)
             for k in self.current_keys
         )
         has_f = any(

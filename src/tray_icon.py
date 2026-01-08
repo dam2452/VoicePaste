@@ -1,7 +1,11 @@
-import pystray
 import threading
-from PIL import Image, ImageDraw
 from typing import Callable
+
+from PIL import (
+    Image,
+    ImageDraw,
+)
+import pystray
 
 
 class TrayIcon:
@@ -14,7 +18,7 @@ class TrayIcon:
         on_transcribe_youtube: Callable = None,
         on_transcribe_file: Callable = None,
         on_set_gpu_profile: Callable = None,
-        get_gpu_profile: Callable = None
+        get_gpu_profile: Callable = None,
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
@@ -59,24 +63,32 @@ class TrayIcon:
         draw.rounded_rectangle(
             [cx - mic_width // 2, top_y, cx + mic_width // 2, top_y + mic_height],
             radius=mic_width // 2,
-            fill=color
+            fill=color,
         )
 
         body_y = top_y + mic_height
         arc_width = int(size * 0.08)
         draw.arc(
-            [cx - int(mic_width * 1.1), body_y - int(size * 0.02),
-             cx + int(mic_width * 1.1), body_y + int(mic_height * 0.35)],
-            start=0, end=180, fill=color, width=arc_width
+            [
+                cx - int(mic_width * 1.1), body_y - int(size * 0.02),
+                cx + int(mic_width * 1.1), body_y + int(mic_height * 0.35),
+            ],
+            start=0, end=180, fill=color, width=arc_width,
         )
 
         stand_bottom = cy + mic_height // 2 + int(size * 0.12)
         stand_width = int(size * 0.06)
-        draw.line([cx, body_y + int(mic_height * 0.15), cx, stand_bottom],
-                 fill=color, width=stand_width)
-        draw.line([cx - int(mic_width * 0.6), stand_bottom,
-                  cx + int(mic_width * 0.6), stand_bottom],
-                 fill=color, width=stand_width)
+        draw.line(
+            [cx, body_y + int(mic_height * 0.15), cx, stand_bottom],
+            fill=color, width=stand_width,
+        )
+        draw.line(
+            [
+                cx - int(mic_width * 0.6), stand_bottom,
+                cx + int(mic_width * 0.6), stand_bottom,
+            ],
+            fill=color, width=stand_width,
+        )
 
     @staticmethod
     def _draw_sound_waves(draw: ImageDraw.ImageDraw, size: int, color: tuple):
@@ -88,17 +100,21 @@ class TrayIcon:
         wave_sizes = [
             (int(size * 0.06), int(size * 0.12)),
             (int(size * 0.08), int(size * 0.18)),
-            (int(size * 0.06), int(size * 0.12))
+            (int(size * 0.06), int(size * 0.12)),
         ]
 
         for i, (w, h) in enumerate(wave_sizes):
             x_left = cx - wave_offset - i * int(size * 0.05)
             x_right = cx + wave_offset + i * int(size * 0.05)
 
-            draw.arc([x_left - w, cy - h, x_left + w, cy + h],
-                    start=270, end=90, fill=color, width=wave_width)
-            draw.arc([x_right - w, cy - h, x_right + w, cy + h],
-                    start=90, end=270, fill=color, width=wave_width)
+            draw.arc(
+                [x_left - w, cy - h, x_left + w, cy + h],
+                start=270, end=90, fill=color, width=wave_width,
+            )
+            draw.arc(
+                [x_right - w, cy - h, x_right + w, cy + h],
+                start=90, end=270, fill=color, width=wave_width,
+            )
 
     @staticmethod
     def _draw_download_arrow(draw: ImageDraw.ImageDraw, size: int, color: tuple):
@@ -117,7 +133,7 @@ class TrayIcon:
         head_points = [
             (arrow_x + arrow_size // 2, arrow_y + int(arrow_size * 0.8)),
             (arrow_x + int(arrow_size * 0.2), shaft_bottom),
-            (arrow_x + int(arrow_size * 0.8), shaft_bottom)
+            (arrow_x + int(arrow_size * 0.8), shaft_bottom),
         ]
         draw.polygon(head_points, fill=color)
 
@@ -133,7 +149,7 @@ class TrayIcon:
             [clip_x, clip_y, clip_x + clip_size, clip_y + clip_size],
             radius=radius,
             outline=color,
-            width=border_width
+            width=border_width,
         )
 
         line_y1 = clip_y + clip_size // 3
@@ -141,10 +157,14 @@ class TrayIcon:
         margin = int(size * 0.05)
         line_width = int(size * 0.04)
 
-        draw.line([clip_x + margin, line_y1, clip_x + clip_size - margin, line_y1],
-                 fill=color, width=line_width)
-        draw.line([clip_x + margin, line_y2, clip_x + clip_size - margin, line_y2],
-                 fill=color, width=line_width)
+        draw.line(
+            [clip_x + margin, line_y1, clip_x + clip_size - margin, line_y1],
+            fill=color, width=line_width,
+        )
+        draw.line(
+            [clip_x + margin, line_y2, clip_x + clip_size - margin, line_y2],
+            fill=color, width=line_width,
+        )
 
     def start(self):
         def create_menu():
@@ -157,24 +177,24 @@ class TrayIcon:
                 pystray.MenuItem(
                     "Record (Shift+V)",
                     self._toggle_recording_action,
-                    enabled=bool(self.on_toggle_recording)
+                    enabled=bool(self.on_toggle_recording),
                 ),
                 pystray.MenuItem(
                     "Transcribe YouTube URL... (Shift+Y)",
                     self._transcribe_youtube_action,
-                    enabled=bool(self.on_transcribe_youtube)
+                    enabled=bool(self.on_transcribe_youtube),
                 ),
                 pystray.MenuItem(
                     "Transcribe File... (Shift+F)",
                     self._transcribe_file_action,
-                    enabled=bool(self.on_transcribe_file)
+                    enabled=bool(self.on_transcribe_file),
                 ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Keep Model in Memory",
                     self._toggle_keep_model_action,
                     checked=lambda _: self.keep_model_enabled,
-                    enabled=bool(self.on_toggle_keep_model)
+                    enabled=bool(self.on_toggle_keep_model),
                 ),
                 pystray.MenuItem(
                     "GPU Profile",
@@ -183,26 +203,26 @@ class TrayIcon:
                             "Standard (RTX 2080S 8GB)",
                             lambda: self._set_gpu_profile_action("standard"),
                             checked=lambda _: self._is_gpu_profile("standard"),
-                            radio=True
+                            radio=True,
                         ),
                         pystray.MenuItem(
                             "High-End (RTX 3090+ 24GB)",
                             lambda: self._set_gpu_profile_action("high_end"),
                             checked=lambda _: self._is_gpu_profile("high_end"),
-                            radio=True
-                        )
+                            radio=True,
+                        ),
                     ),
-                    enabled=bool(self.on_set_gpu_profile)
+                    enabled=bool(self.on_set_gpu_profile),
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Exit", self._quit_action)
+                pystray.MenuItem("Exit", self._quit_action),
             )
 
         self.icon = pystray.Icon(
             "VoicePaste",
             self.create_icon_image("idle"),
             "VoicePaste - Ready",
-            menu=create_menu()
+            menu=create_menu(),
         )
         self.thread = threading.Thread(target=self.icon.run, daemon=True)
         self.thread.start()
@@ -228,7 +248,7 @@ class TrayIcon:
             "idle": "Ready",
             "recording": "Recording...",
             "downloading": "Downloading...",
-            "processing": "Processing..."
+            "processing": "Processing...",
         }
         status = status_map.get(self.status, self.status.capitalize())
         icon = {"idle": "✓", "recording": "●", "downloading": "⬇", "processing": "⚙"}.get(self.status, "○")

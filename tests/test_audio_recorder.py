@@ -1,6 +1,8 @@
-import pytest
 import time
+
 import numpy as np
+import pytest
+
 from src.audio_recorder import AudioRecorder
 
 
@@ -8,7 +10,7 @@ def test_audio_recorder_initialization():
     recorder = AudioRecorder(target_sample_rate=16000)
     assert recorder.target_sample_rate == 16000
     assert recorder.is_recording is False
-    assert recorder.audio_data == []
+    assert not recorder.audio_data
     recorder.pyaudio_instance.terminate()
 
 
