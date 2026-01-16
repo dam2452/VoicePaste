@@ -1,7 +1,8 @@
 import argparse
+import os
+from pathlib import Path
 import sys
 import threading
-from pathlib import Path
 from typing import (
     Callable,
     List,
@@ -29,12 +30,79 @@ def read_file_safe(file_path: Path) -> Optional[str]:
     return None
 
 
-def concatenate_files(
+def concatenate_specific_files(
+    file_paths: List[Path],
+    root: Optional[Path] = None,
+    max_file_size_kb: int = DEFAULT_MAX_FILE_SIZE_KB,
+    include_summary: bool = True,
+) -> str:
+    if not file_paths:
+        return ""
+
+    unique_paths = list({p.resolve(): p for p in file_paths}.values())
+
+    if root is None:
+        root = Path(os.path.commonpath([str(p) for p in unique_paths]))
+        if root.is_file():
+            root = root.parent
+
+    max_size_bytes = max_file_size_kb * 1024
+    collected_files = sorted(unique_paths, key=lambda p: str(p).lower())
+
+    output_parts: list[str] = []
+    skipped_files: list[str] = []
+    processed_count = 0
+
+    for file_path in collected_files:
+        try:
+            relative_path = file_path.relative_to(root)
+        except ValueError:
+            relative_path = file_path.name
+
+        if file_path.stat().st_size > max_size_bytes:
+            skipped_files.append(f"{relative_path} (too large)")
+            continue
+
+        content = read_file_safe(file_path)
+        if content is None:
+            skipped_files.append(f"{relative_path} (encoding error)")
+            continue
+
+        file_block = f"{SEPARATOR_LINE}\n# FILE: {relative_path}\n{SEPARATOR_LINE}\n{content}"
+        if not content.endswith('\n'):
+            file_block += '\n'
+        output_parts.append(file_block)
+        processed_count += 1
+
+    result = '\n'.join(output_parts)
+
+    if include_summary:
+        extensions = {p.suffix.lower() for p in file_paths if p.suffix}
+        summary_lines = [
+            SEPARATOR_LINE,
+            f"# SUMMARY: {processed_count} files concatenated",
+            f"# Extensions: {', '.join(sorted(extensions))}",
+            f"# Root: {root}",
+        ]
+        if skipped_files:
+            summary_lines.append(f"# Skipped: {len(skipped_files)} files")
+            for sf in skipped_files[:10]:
+                summary_lines.append(f"#   - {sf}")
+            if len(skipped_files) > 10:
+                summary_lines.append(f"#   ... and {len(skipped_files) - 10} more")
+        summary_lines.append(SEPARATOR_LINE)
+        summary = '\n'.join(summary_lines)
+        result = summary + '\n\n' + result
+
+    return result
+
+
+def concatenate_files(  # pylint: disable=too-many-locals
     folder_path: str,
     extensions: List[str],
     exclude_dirs: Optional[List[str]] = None,
     max_file_size_kb: int = DEFAULT_MAX_FILE_SIZE_KB,
-    include_summary: bool = True
+    include_summary: bool = True,
 ) -> str:
     root = Path(folder_path).resolve()
     if not root.is_dir():
@@ -103,10 +171,11 @@ class ConcatenatorSession:
         on_complete: Optional[Callable[[str], None]] = None,
         on_status: Optional[Callable[[str], None]] = None,
         folder_timeout: float = SESSION_TIMEOUT_FOLDER,
-        extension_timeout: float = SESSION_TIMEOUT_EXTENSION
+        extension_timeout: float = SESSION_TIMEOUT_EXTENSION,
     ):
         self.folder_path: Optional[str] = None
         self.extensions: Set[str] = set()
+        self.specific_files: List[Path] = []
         self.on_complete = on_complete
         self.on_status = on_status or print
         self.folder_timeout = folder_timeout
@@ -127,6 +196,21 @@ class ConcatenatorSession:
 
     def _on_timeout(self):
         with self._lock:
+            if self.specific_files:
+                self.on_status(f"Concatenating {len(self.specific_files)} specific files...")
+                try:
+                    result = concatenate_specific_files(file_paths=self.specific_files)
+                    if self.on_complete:
+                        self.on_complete(result)
+                    file_count = result.count("# FILE:")
+                    char_count = len(result)
+                    self.on_status(f"Concatenation complete! {file_count} files, {char_count} chars copied to clipboard.")
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    self.on_status(f"Error: {e}")
+                finally:
+                    self.reset()
+                return
+
             if not self.folder_path or not self.extensions:
                 self.on_status("Session expired: folder or extensions missing")
                 self.reset()
@@ -143,7 +227,7 @@ class ConcatenatorSession:
                 file_count = result.count("# FILE:")
                 char_count = len(result)
                 self.on_status(f"Concatenation complete! {file_count} files, {char_count} chars copied to clipboard.")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 self.on_status(f"Error: {e}")
             finally:
                 self.reset()
@@ -152,9 +236,59 @@ class ConcatenatorSession:
         self._cancel_timer()
         self.folder_path = None
         self.extensions = set()
+        self.specific_files = []
+
+    def _find_common_root(self, paths: List[Path]) -> Optional[Path]:
+        if not paths:
+            return None
+        if len(paths) == 1:
+            return paths[0].parent
+        try:
+            common = Path(os.path.commonpath([str(p) for p in paths]))
+            if common.is_file():
+                common = common.parent
+            return common if common.is_dir() else None
+        except ValueError:
+            return None
+
+    def _process_multiple_files(self, lines: List[str]) -> Optional[str]:
+        valid_paths: List[Path] = []
+        extensions: Set[str] = set()
+
+        for line in lines:
+            cleaned = line.strip().strip('"').strip("'")
+            if not cleaned:
+                continue
+            path = Path(cleaned)
+            if path.is_file():
+                valid_paths.append(path.resolve())
+                ext = path.suffix.lower()
+                if ext:
+                    extensions.add(ext)
+
+        if len(valid_paths) < 2:
+            return None
+
+        unique_paths = list({p: p for p in valid_paths}.values())
+        common_root = self._find_common_root(unique_paths)
+        if not common_root:
+            return None
+
+        self.specific_files = unique_paths
+        self.folder_path = str(common_root)
+        self.extensions = extensions
+        self._start_timer(self.extension_timeout)
+        return (f"Detected {len(unique_paths)} files, root: {self.folder_path}, "
+                f"extensions: {', '.join(sorted(extensions))} - executing in 3s...")
 
     def process_clipboard(self, clipboard_text: str) -> str:
         with self._lock:
+            lines = clipboard_text.strip().split('\n')
+            if len(lines) > 1:
+                result = self._process_multiple_files(lines)
+                if result:
+                    return result
+
             text = clipboard_text.strip().strip('"').strip("'")
             path = Path(text)
 
@@ -168,7 +302,11 @@ class ConcatenatorSession:
                 ext = path.suffix.lower()
                 if ext:
                     if not self.folder_path:
-                        return "Set folder first (copy folder path and press hotkey)"
+                        self.folder_path = str(path.parent.resolve())
+                        self.extensions.add(ext)
+                        self._start_timer(self.extension_timeout)
+                        return (f"Folder auto-set: {self.folder_path}, "
+                                f"extension: {ext} - executing in 3s...")
                     self.extensions.add(ext)
                     self._start_timer(self.extension_timeout)
                     return f"Added extension: {ext} (total: {', '.join(sorted(self.extensions))}) - executing in 3s..."
@@ -184,24 +322,21 @@ class ConcatenatorSession:
         return f"Folder: {self.folder_path} | Extensions: {', '.join(sorted(self.extensions))}"
 
 
-def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
-    import tkinter as tk
-    from tkinter import filedialog, ttk
+def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statements
+    on_result: Optional[Callable[[str], None]] = None,
+):
+    import tkinter as tk  # pylint: disable=import-outside-toplevel
+    from tkinter import (  # pylint: disable=import-outside-toplevel
+        filedialog,
+        ttk,
+    )
 
-    dialog = tk.Tk()
-    dialog.title("File Concatenator")
-    dialog.geometry("550x350")
-    dialog.resizable(False, False)
+    from src.dialog_utils import (  # pylint: disable=import-outside-toplevel
+        center_dialog,
+        create_dialog,
+    )
 
-    try:
-        dialog.iconbitmap(default='icon.ico')
-    except Exception:
-        pass
-
-    dialog.configure(bg='#f0f0f0')
-
-    main_frame = ttk.Frame(dialog, padding="20")
-    main_frame.pack(fill=tk.BOTH, expand=True)
+    dialog, main_frame = create_dialog("File Concatenator", 550, 350)
 
     title_label = ttk.Label(
         main_frame,
@@ -261,7 +396,7 @@ def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
         path = filedialog.asksaveasfilename(
             title="Save Output As",
             defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
         )
         if path:
             output_var.set(path)
@@ -305,13 +440,13 @@ def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
         status_var.set("Processing...")
         dialog.update()
 
-        try:
+        try:  # pylint: disable=too-many-try-statements
             result = concatenate_files(
                 folder_path=folder,
                 extensions=extensions,
                 exclude_dirs=exclude,
                 max_file_size_kb=max_size,
-                include_summary=summary_var.get()
+                include_summary=summary_var.get(),
             )
 
             output_path = output_var.get().strip()
@@ -320,7 +455,7 @@ def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
                 status_var.set(f"Saved to {output_path}")
 
             if clipboard_var.get():
-                import pyperclip
+                import pyperclip  # pylint: disable=import-outside-toplevel
                 pyperclip.copy(result)
                 if output_path:
                     status_var.set(f"Saved to {output_path} and copied to clipboard!")
@@ -330,7 +465,7 @@ def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
             if on_result:
                 on_result(result)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             status_var.set(f"Error: {e}")
 
     def on_cancel():
@@ -340,12 +475,7 @@ def show_concatenator_dialog(on_result: Optional[Callable[[str], None]] = None):
     ttk.Button(button_frame, text="Close", command=on_cancel, width=12).pack(side=tk.LEFT, padx=5)
 
     folder_entry.focus()
-
-    dialog.update_idletasks()
-    x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
-    y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
-    dialog.geometry(f'+{x}+{y}')
-
+    center_dialog(dialog)
     dialog.mainloop()
 
 
@@ -359,14 +489,16 @@ Examples:
   python file_concatenator.py ./project .py .ts --exclude dist build
   python file_concatenator.py ./code .py --max-size 1000 --output context.txt
   python file_concatenator.py --gui
-'''
+''',
     )
     parser.add_argument('folder', nargs='?', help='Path to the folder to scan')
     parser.add_argument('extensions', nargs='*', help='File extensions to include (e.g., .py .js .ts)')
     parser.add_argument('--gui', '-g', action='store_true', help='Open GUI dialog')
     parser.add_argument('--exclude', '-e', nargs='*', default=[], help='Additional directories to exclude')
-    parser.add_argument('--max-size', '-m', type=int, default=DEFAULT_MAX_FILE_SIZE_KB,
-                        help=f'Maximum file size in KB (default: {DEFAULT_MAX_FILE_SIZE_KB})')
+    parser.add_argument(
+        '--max-size', '-m', type=int, default=DEFAULT_MAX_FILE_SIZE_KB,
+        help=f'Maximum file size in KB (default: {DEFAULT_MAX_FILE_SIZE_KB})',
+    )
     parser.add_argument('--output', '-o', help='Output file path (default: stdout)')
     parser.add_argument('--no-summary', action='store_true', help='Omit the summary header')
     parser.add_argument('--clipboard', '-c', action='store_true', help='Copy result to clipboard')
@@ -388,7 +520,7 @@ Examples:
             extensions=args.extensions,
             exclude_dirs=args.exclude,
             max_file_size_kb=args.max_size,
-            include_summary=not args.no_summary
+            include_summary=not args.no_summary,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -402,7 +534,7 @@ Examples:
 
     if args.clipboard:
         try:
-            import pyperclip
+            import pyperclip  # pylint: disable=import-outside-toplevel
             pyperclip.copy(result)
             print("(Copied to clipboard)", file=sys.stderr)
         except ImportError:

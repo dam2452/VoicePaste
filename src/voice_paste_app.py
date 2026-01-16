@@ -420,20 +420,12 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                 import tkinter as tk
                 from tkinter import ttk
 
-                dialog = tk.Tk()
-                dialog.title("Transcribe YouTube Video")
-                dialog.geometry("500x180")
-                dialog.resizable(False, False)
+                from src.dialog_utils import (
+                    center_dialog,
+                    create_dialog,
+                )
 
-                try:
-                    dialog.iconbitmap(default='icon.ico')
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
-
-                dialog.configure(bg='#f0f0f0')
-
-                main_frame = ttk.Frame(dialog, padding="20")
-                main_frame.pack(fill=tk.BOTH, expand=True)
+                dialog, main_frame = create_dialog("Transcribe YouTube Video", 500, 180)
 
                 title_label = ttk.Label(
                     main_frame,
@@ -483,11 +475,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                 url_entry.bind('<Return>', lambda e: on_ok())
                 url_entry.bind('<Escape>', lambda e: on_cancel())
 
-                dialog.update_idletasks()
-                x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
-                y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
-                dialog.geometry(f'+{x}+{y}')
-
+                center_dialog(dialog)
                 dialog.mainloop()
 
                 if result['url']:
