@@ -11,6 +11,7 @@ Voice-to-text application with real-time transcription and automatic clipboard i
 - 📺 **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
 - 📁 **Local file transcription** - Press Shift+F to transcribe audio/video files from clipboard
 - 📚 **Batch processing** - Select and transcribe multiple files at once, each cached separately
+- 📄 **File Concatenator** - Press Shift+K to concatenate source files for LLM context
 - ⚡ **Real-time transcription** - Using OpenAI Whisper Turbo model
 - 🚀 **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
 - 📋 **Automatic clipboard** - Transcribed text instantly available for pasting
@@ -98,6 +99,7 @@ python main.py
 - Press `Shift+V` → speak → press `Shift+V` → text in clipboard ✅
 - Copy YouTube URL → press `Shift+Y` → video transcribed → text in clipboard ✅
 - Copy file or file path → press `Shift+F` → file transcribed → text in clipboard ✅
+- Copy folder path → `Shift+K` → copy file path → `Shift+K` → files concatenated → text in clipboard ✅
 
 ## 🎯 Usage
 
@@ -191,6 +193,43 @@ You can also change GPU profile from system tray menu.
 **Supported formats:**
 - Audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.aac`, `.wma`
 - Video: `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv`, `.flv`, `.webm`, `.m4v`
+
+### 📄 File Concatenator (for LLM context)
+
+Concatenate source code files from a folder into a single text for LLM context.
+
+**Hotkey method (Shift+K):**
+1. 📋 Copy folder path to clipboard (e.g. `C:\project\src`)
+2. ⌨️ Press `Shift+K` - folder is set
+3. 📋 Copy any file path to clipboard (e.g. `C:\anywhere\main.py`)
+4. ⌨️ Press `Shift+K` - extension `.py` is added
+5. 📋 (Optional) Copy more files with different extensions → `Shift+K` for each
+6. ⏳ Wait 2 seconds - all files with selected extensions are concatenated
+7. 📋 Result automatically copied to clipboard
+
+**GUI method:**
+- Right-click tray icon → "File Concatenator... (Shift+K)"
+- Select folder, enter extensions, click Run
+
+**CLI method:**
+```bash
+python src/file_concatenator.py ./src .py .js .ts
+python src/file_concatenator.py ./project .py --exclude dist build --output context.txt
+python src/file_concatenator.py --gui
+```
+
+**Output format:**
+```
+################################################################################
+# FILE: src/main.py
+################################################################################
+<file content>
+
+################################################################################
+# FILE: src/utils/helper.py
+################################################################################
+<file content>
+```
 
 **Icon colors:** 🟢 ready → 🔴 recording → 🟣 downloading → 🔵 processing → 🟢 ready
 

@@ -9,7 +9,7 @@ import pystray
 
 
 class TrayIcon:
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         on_quit: Callable,
         on_toggle_recording: Callable = None,
@@ -20,6 +20,7 @@ class TrayIcon:
         on_set_gpu_profile: Callable = None,
         get_gpu_profile: Callable = None,
         on_show_history: Callable = None,
+        on_file_concatenator: Callable = None,
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
@@ -30,6 +31,7 @@ class TrayIcon:
         self.on_set_gpu_profile = on_set_gpu_profile
         self.get_gpu_profile = get_gpu_profile
         self.on_show_history = on_show_history
+        self.on_file_concatenator = on_file_concatenator
         self.icon = None
         self.status = "idle"
         self.thread = None
@@ -191,6 +193,11 @@ class TrayIcon:
                     self._transcribe_file_action,
                     enabled=bool(self.on_transcribe_file),
                 ),
+                pystray.MenuItem(
+                    "File Concatenator... (Shift+K)",
+                    self._file_concatenator_action,
+                    enabled=bool(self.on_file_concatenator),
+                ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Show History...",
@@ -292,6 +299,10 @@ class TrayIcon:
     def _transcribe_file_action(self, _=None):
         if self.on_transcribe_file:
             self.on_transcribe_file()
+
+    def _file_concatenator_action(self, _=None):
+        if self.on_file_concatenator:
+            self.on_file_concatenator()
 
     def _show_history_action(self, _=None):
         if self.on_show_history:

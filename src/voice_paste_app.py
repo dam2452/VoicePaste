@@ -10,6 +10,10 @@ from typing import (
 
 from src.audio_recorder import AudioRecorder
 from src.clipboard_manager import ClipboardManager
+from src.file_concatenator import (
+    ConcatenatorSession,
+    show_concatenator_dialog,
+)
 from src.history_window import HistoryWindow
 from src.hotkey_handler import HotkeyHandler
 from src.local_file_processor import LocalFileProcessor
@@ -25,10 +29,15 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         self.clipboard_manager = ClipboardManager()
         self.youtube_downloader = YouTubeDownloader()
         self.local_file_processor = LocalFileProcessor()
+        self.concat_session = ConcatenatorSession(
+            on_complete=self._on_concat_complete,
+            on_status=self._on_concat_status,
+        )
         self.hotkey_handler = HotkeyHandler(
             voice_callback=self.on_voice_hotkey,
             youtube_callback=self.on_youtube_hotkey,
             file_callback=self.on_file_hotkey,
+            concat_callback=self.on_concat_hotkey,
         )
         self.is_running = True
         self.processing_lock = threading.Lock()
@@ -57,6 +66,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
             on_set_gpu_profile=self.set_gpu_profile,
             get_gpu_profile=self.get_gpu_profile,
             on_show_history=self.show_history,
+            on_file_concatenator=self.show_concatenator_dialog,
         )
 
     def start(self):
@@ -72,6 +82,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         print("Press Shift+V to start/stop recording...")
         print("Press Shift+Y to transcribe YouTube video from clipboard...")
         print("Press Shift+F to transcribe audio/video file from clipboard...")
+        print("Press Shift+K to concatenate files (folder path -> file path for extension)...")
         print("Press Ctrl+C to quit")
 
         print("Starting hotkey listener...")
@@ -254,6 +265,25 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_files, daemon=True).start()
+
+    def on_concat_hotkey(self):
+        clipboard_text = self.clipboard_manager.get_from_clipboard()
+        if not clipboard_text:
+            print("Clipboard empty")
+            return
+        message = self.concat_session.process_clipboard(clipboard_text)
+        print(message)
+
+    def _on_concat_complete(self, result: str):
+        self.clipboard_manager.copy_to_clipboard(result)
+
+    def _on_concat_status(self, message: str):
+        print(message)
+
+    def show_concatenator_dialog(self):
+        def process():
+            show_concatenator_dialog()
+        threading.Thread(target=process, daemon=True).start()
 
     def _start_recording(self):
         with self.processing_lock:

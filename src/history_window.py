@@ -1,7 +1,6 @@
+from datetime import datetime
 import threading
 import tkinter as tk
-from datetime import datetime
-from pathlib import Path
 from tkinter import (
     filedialog,
     messagebox,
@@ -45,7 +44,7 @@ class HistoryWindow:
             self.window.destroy()
         self.window = None
 
-    def _create_window(self):
+    def _create_window(self):  # pylint: disable=too-many-statements
         self.is_open = True
         self.window = tk.Tk()
         self.window.title("VoicePaste - Transcription History")
@@ -190,7 +189,7 @@ class HistoryWindow:
             entry = item['data']
             item_id = item['item_id']
 
-            type_match = filter_type == "all" or entry['source_type'] == filter_type
+            type_match = filter_type in ("all", entry['source_type'])
 
             text_match = (
                 search_text == "" or
@@ -251,7 +250,7 @@ class HistoryWindow:
         )
 
         if file_path:
-            try:
+            try:  # pylint: disable=too-many-try-statements
                 with open(file_path, 'w', encoding='utf-8') as f:
                     for idx, item in enumerate(selected_items, 1):
                         date_str = datetime.fromtimestamp(item['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
