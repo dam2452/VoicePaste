@@ -258,6 +258,13 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         if not clipboard_text:
             log.warn("Clipboard is empty")
             return
+
+        text = clipboard_text.strip().strip('"').strip("'")
+        if Path(text).is_dir():
+            log.info(f"Folder detected - opening dialog: [dim]{text}[/dim]")
+            self._open_concat_dialog(folder=text)
+            return
+
         message = self.concat_session.process_clipboard(clipboard_text)
         log.info(message)
 
@@ -267,10 +274,13 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
     def _on_concat_status(self, message: str):
         log.info(message)
 
-    def show_concatenator_dialog(self):
+    def _open_concat_dialog(self, folder: Optional[str] = None):
         def process():
-            show_concatenator_dialog()
+            show_concatenator_dialog(initial_folder=folder)
         threading.Thread(target=process, daemon=True).start()
+
+    def show_concatenator_dialog(self):
+        self._open_concat_dialog()
 
     def _start_recording(self):
         with self.processing_lock:
@@ -403,66 +413,65 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         def process():
             # pylint: disable=too-many-try-statements,import-outside-toplevel
             try:
-                import tkinter as tk
-                from tkinter import ttk
-
-                from src.dialog_utils import (
-                    center_dialog,
-                    create_dialog,
+                import customtkinter as ctk  # pylint: disable=import-outside-toplevel
+                from src.dialog_utils import (  # pylint: disable=import-outside-toplevel
+                    ACCENT, BG, DIM, ERROR, FG, SURFACE, setup_window,
                 )
 
-                dialog, main_frame = create_dialog("Transcribe YouTube Video", 500, 180)
+                win = ctk.CTk()
+                setup_window(win, "VoicePaste - Transcribe YouTube", 540, 240)
 
-                title_label = ttk.Label(
-                    main_frame,
-                    text="Enter YouTube URL",
-                    font=('Segoe UI', 11, 'bold'),
-                )
-                title_label.pack(pady=(0, 10))
+                content = ctk.CTkFrame(win, fg_color=BG)
+                content.pack(fill="both", expand=True, padx=24, pady=20)
 
-                url_var = tk.StringVar()
-                url_entry = ttk.Entry(
-                    main_frame,
-                    textvariable=url_var,
-                    font=('Segoe UI', 10),
-                    width=50,
-                )
-                url_entry.pack(pady=10, ipady=5)
-                url_entry.focus()
+                ctk.CTkLabel(content, text="Transcribe YouTube Video",
+                             font=ctk.CTkFont(size=20, weight="bold"),
+                             text_color=FG).pack(anchor="w")
+                ctk.CTkLabel(content, text="Paste a YouTube URL and press Enter or Transcribe.",
+                             font=ctk.CTkFont(size=12), text_color=DIM).pack(anchor="w", pady=(2, 12))
 
-                button_frame = ttk.Frame(main_frame)
-                button_frame.pack(pady=15)
+                clipboard = self.clipboard_manager.get_from_clipboard()
+                initial_url = ""
+                if clipboard and isinstance(clipboard, str) and self.youtube_downloader.is_youtube_url(clipboard.strip()):
+                    initial_url = clipboard.strip()
+
+                url_entry = ctk.CTkEntry(content, fg_color=SURFACE, border_color=SURFACE,
+                                         text_color=FG, placeholder_text="https://www.youtube.com/watch?v=...",
+                                         font=ctk.CTkFont(size=13), height=38)
+                url_entry.pack(fill="x", pady=(0, 4))
+                if initial_url:
+                    url_entry.insert(0, initial_url)
+
+                status_label = ctk.CTkLabel(content, text="", font=ctk.CTkFont(size=12),
+                                             text_color=ERROR, anchor="w")
+                status_label.pack(fill="x", pady=(0, 10))
 
                 result = {'url': None}
 
-                def on_ok():
-                    result['url'] = url_var.get().strip()
-                    dialog.destroy()
+                def on_ok() -> None:
+                    url = url_entry.get().strip()
+                    if not url:
+                        status_label.configure(text="Paste a YouTube URL first.")
+                        return
+                    result['url'] = url
+                    win.destroy()
 
-                def on_cancel():
-                    dialog.destroy()
+                def on_cancel() -> None:
+                    win.destroy()
 
-                ok_button = ttk.Button(
-                    button_frame,
-                    text="Transcribe",
-                    command=on_ok,
-                    width=12,
-                )
-                ok_button.pack(side=tk.LEFT, padx=5)
+                btn_row = ctk.CTkFrame(content, fg_color=BG)
+                btn_row.pack(fill="x")
+                ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=100, height=38,
+                              fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+                              font=ctk.CTkFont(size=13)).pack(side="right")
+                ctk.CTkButton(btn_row, text="Transcribe", command=on_ok, width=120, height=38,
+                              fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
+                              font=ctk.CTkFont(size=13, weight="bold")).pack(side="right", padx=(0, 8))
 
-                cancel_button = ttk.Button(
-                    button_frame,
-                    text="Cancel",
-                    command=on_cancel,
-                    width=12,
-                )
-                cancel_button.pack(side=tk.LEFT, padx=5)
-
-                url_entry.bind('<Return>', lambda e: on_ok())
-                url_entry.bind('<Escape>', lambda e: on_cancel())
-
-                center_dialog(dialog)
-                dialog.mainloop()
+                win.bind("<Return>", lambda _e: on_ok())
+                win.bind("<Escape>", lambda _e: on_cancel())
+                url_entry.focus()
+                win.mainloop()
 
                 if result['url']:
                     self.clipboard_manager.copy_to_clipboard(result['url'])

@@ -194,43 +194,45 @@ class ConcatenatorSession:
         self._timer.daemon = True
         self._timer.start()
 
-    def _on_timeout(self):
-        with self._lock:
-            if self.specific_files:
-                self.on_status(f"Concatenating {len(self.specific_files)} specific files...")
-                try:
-                    result = concatenate_specific_files(file_paths=self.specific_files)
-                    if self.on_complete:
-                        self.on_complete(result)
-                    file_count = result.count("# FILE:")
-                    char_count = len(result)
-                    self.on_status(f"Concatenation complete! {file_count} files, {char_count} chars copied to clipboard.")
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    self.on_status(f"Error: {e}")
-                finally:
-                    self.reset()
-                return
-
-            if not self.folder_path or not self.extensions:
-                self.on_status("Session expired: folder or extensions missing")
-                self.reset()
-                return
-
-            self.on_status(f"Concatenating {len(self.extensions)} extension(s) from {self.folder_path}...")
+    def _run_concatenation(self):
+        if self.specific_files:
+            self.on_status(f"Concatenating {len(self.specific_files)} files...")
             try:
-                result = concatenate_files(
-                    folder_path=self.folder_path,
-                    extensions=list(self.extensions),
-                )
+                result = concatenate_specific_files(file_paths=self.specific_files)
                 if self.on_complete:
                     self.on_complete(result)
                 file_count = result.count("# FILE:")
-                char_count = len(result)
-                self.on_status(f"Concatenation complete! {file_count} files, {char_count} chars copied to clipboard.")
+                self.on_status(f"Done: {file_count} files / {len(result)} chars copied to clipboard")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self.on_status(f"Error: {e}")
+                self.on_status(f"Concatenation error: {e}")
             finally:
                 self.reset()
+            return
+
+        if not self.folder_path or not self.extensions:
+            self.on_status("Session expired: folder or extensions missing")
+            self.reset()
+            return
+
+        exts = ', '.join(sorted(self.extensions))
+        self.on_status(f"Concatenating [{exts}] from {self.folder_path}...")
+        try:
+            result = concatenate_files(
+                folder_path=self.folder_path,
+                extensions=list(self.extensions),
+            )
+            if self.on_complete:
+                self.on_complete(result)
+            file_count = result.count("# FILE:")
+            self.on_status(f"Done: {file_count} files / {len(result)} chars copied to clipboard")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.on_status(f"Concatenation error: {e}")
+        finally:
+            self.reset()
+
+    def _on_timeout(self):
+        with self._lock:
+            self._run_concatenation()
 
     def reset(self):
         self._cancel_timer()
@@ -278,8 +280,7 @@ class ConcatenatorSession:
         self.folder_path = str(common_root)
         self.extensions = extensions
         self._start_timer(self.extension_timeout)
-        return (f"Detected {len(unique_paths)} files, root: {self.folder_path}, "
-                f"extensions: {', '.join(sorted(extensions))} - executing in 3s...")
+        return f"Will concat {len(unique_paths)} specific files from {self.folder_path} in 3s..."
 
     def process_clipboard(self, clipboard_text: str) -> str:
         with self._lock:
@@ -292,25 +293,17 @@ class ConcatenatorSession:
             text = clipboard_text.strip().strip('"').strip("'")
             path = Path(text)
 
-            if path.is_dir():
-                self.folder_path = str(path.resolve())
-                self.extensions = set()
-                self._start_timer(self.folder_timeout)
-                return f"Folder set: {self.folder_path} (waiting for extensions...)"
-
             if path.is_file():
                 ext = path.suffix.lower()
-                if ext:
-                    if not self.folder_path:
-                        self.folder_path = str(path.parent.resolve())
-                        self.extensions.add(ext)
-                        self._start_timer(self.extension_timeout)
-                        return (f"Folder auto-set: {self.folder_path}, "
-                                f"extension: {ext} - executing in 3s...")
-                    self.extensions.add(ext)
-                    self._start_timer(self.extension_timeout)
-                    return f"Added extension: {ext} (total: {', '.join(sorted(self.extensions))}) - executing in 3s..."
-                return "File has no extension"
+                if not ext:
+                    return "File has no extension"
+                folder = str(path.parent.resolve())
+                if not self.folder_path:
+                    self.folder_path = folder
+                self.extensions.add(ext)
+                exts = ', '.join(sorted(self.extensions))
+                self._start_timer(self.extension_timeout)
+                return f"Will concat [{exts}] from {self.folder_path} in 3s..."
 
             return f"Not a valid path: {text}"
 
@@ -324,159 +317,178 @@ class ConcatenatorSession:
 
 def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statements
     on_result: Optional[Callable[[str], None]] = None,
-):
+    initial_folder: Optional[str] = None,
+) -> None:
     import tkinter as tk  # pylint: disable=import-outside-toplevel
-    from tkinter import (  # pylint: disable=import-outside-toplevel
-        filedialog,
-        ttk,
-    )
+    from tkinter import filedialog  # pylint: disable=import-outside-toplevel
 
+    import customtkinter as ctk  # pylint: disable=import-outside-toplevel
     from src.dialog_utils import (  # pylint: disable=import-outside-toplevel
-        center_dialog,
-        create_dialog,
+        ACCENT, BG, DIM, ERROR, FG, SUCCESS, SURFACE, setup_window,
     )
 
-    dialog, main_frame = create_dialog("File Concatenator", 550, 350)
+    win = ctk.CTk()
+    setup_window(win, "VoicePaste - File Concatenator", 620, 530)
 
-    title_label = ttk.Label(
-        main_frame,
-        text="Concatenate Files for LLM Context",
-        font=('Segoe UI', 11, 'bold'),
-    )
-    title_label.pack(pady=(0, 15))
+    content = ctk.CTkFrame(win, fg_color=BG)
+    content.pack(fill="both", expand=True, padx=24, pady=20)
 
-    folder_frame = ttk.Frame(main_frame)
-    folder_frame.pack(fill=tk.X, pady=5)
+    ctk.CTkLabel(content, text="File Concatenator", font=ctk.CTkFont(size=20, weight="bold"),
+                 text_color=FG).pack(anchor="w")
+    ctk.CTkLabel(content, text="Collect source files into a single block for LLM context.",
+                 font=ctk.CTkFont(size=12), text_color=DIM).pack(anchor="w", pady=(2, 10))
 
-    ttk.Label(folder_frame, text="Folder:", width=12).pack(side=tk.LEFT)
-    folder_var = tk.StringVar()
-    folder_entry = ttk.Entry(folder_frame, textvariable=folder_var, width=40)
-    folder_entry.pack(side=tk.LEFT, padx=5)
+    def labeled_entry(label: str, value: str = "", placeholder: str = "") -> ctk.CTkEntry:
+        ctk.CTkLabel(content, text=label, font=ctk.CTkFont(size=12),
+                     text_color=DIM, anchor="w").pack(fill="x")
+        entry = ctk.CTkEntry(content, fg_color=SURFACE, border_color=SURFACE,
+                             text_color=FG, placeholder_text=placeholder,
+                             font=ctk.CTkFont(size=13), height=36)
+        entry.pack(fill="x", pady=(2, 8))
+        if value:
+            entry.insert(0, value)
+        return entry
 
-    def browse_folder():
-        path = filedialog.askdirectory(title="Select Folder")
+    def labeled_entry_with_browse(label: str, value: str = "",
+                                  placeholder: str = "",
+                                  browse_fn: Optional[Callable] = None) -> ctk.CTkEntry:
+        ctk.CTkLabel(content, text=label, font=ctk.CTkFont(size=12),
+                     text_color=DIM, anchor="w").pack(fill="x")
+        row = ctk.CTkFrame(content, fg_color=BG)
+        row.pack(fill="x", pady=(2, 8))
+        entry = ctk.CTkEntry(row, fg_color=SURFACE, border_color=SURFACE,
+                             text_color=FG, placeholder_text=placeholder,
+                             font=ctk.CTkFont(size=13), height=36)
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        if value:
+            entry.insert(0, value)
+        if browse_fn:
+            ctk.CTkButton(row, text="Browse", command=browse_fn, width=80, height=36,
+                          fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+                          font=ctk.CTkFont(size=12)).pack(side="left")
+        return entry
+
+    def browse_folder() -> None:
+        path = filedialog.askdirectory(title="Select folder to concatenate")
         if path:
-            folder_var.set(path)
+            folder_entry.delete(0, "end")
+            folder_entry.insert(0, path)
 
-    ttk.Button(folder_frame, text="Browse...", command=browse_folder).pack(side=tk.LEFT)
-
-    ext_frame = ttk.Frame(main_frame)
-    ext_frame.pack(fill=tk.X, pady=5)
-
-    ttk.Label(ext_frame, text="Extensions:", width=12).pack(side=tk.LEFT)
-    ext_var = tk.StringVar(value=".py .js .ts")
-    ext_entry = ttk.Entry(ext_frame, textvariable=ext_var, width=48)
-    ext_entry.pack(side=tk.LEFT, padx=5)
-
-    exclude_frame = ttk.Frame(main_frame)
-    exclude_frame.pack(fill=tk.X, pady=5)
-
-    ttk.Label(exclude_frame, text="Exclude dirs:", width=12).pack(side=tk.LEFT)
-    exclude_var = tk.StringVar()
-    exclude_entry = ttk.Entry(exclude_frame, textvariable=exclude_var, width=48)
-    exclude_entry.pack(side=tk.LEFT, padx=5)
-
-    size_frame = ttk.Frame(main_frame)
-    size_frame.pack(fill=tk.X, pady=5)
-
-    ttk.Label(size_frame, text="Max file KB:", width=12).pack(side=tk.LEFT)
-    size_var = tk.StringVar(value=str(DEFAULT_MAX_FILE_SIZE_KB))
-    size_entry = ttk.Entry(size_frame, textvariable=size_var, width=10)
-    size_entry.pack(side=tk.LEFT, padx=5)
-
-    output_frame = ttk.Frame(main_frame)
-    output_frame.pack(fill=tk.X, pady=5)
-
-    ttk.Label(output_frame, text="Output file:", width=12).pack(side=tk.LEFT)
-    output_var = tk.StringVar()
-    output_entry = ttk.Entry(output_frame, textvariable=output_var, width=40)
-    output_entry.pack(side=tk.LEFT, padx=5)
-
-    def browse_output():
+    def browse_output() -> None:
         path = filedialog.asksaveasfilename(
-            title="Save Output As",
-            defaultextension=".txt",
+            title="Save output as...", defaultextension=".txt",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
         )
         if path:
-            output_var.set(path)
+            output_entry.delete(0, "end")
+            output_entry.insert(0, path)
 
-    ttk.Button(output_frame, text="Browse...", command=browse_output).pack(side=tk.LEFT)
+    folder_entry = labeled_entry_with_browse("Folder", value=initial_folder or "",
+                                             placeholder="Path to folder...",
+                                             browse_fn=browse_folder)
+    ext_entry = labeled_entry("Extensions", value=".py .js .ts",
+                              placeholder=".py .ts .md")
+    exclude_entry = labeled_entry("Exclude dirs (space-separated)",
+                                  placeholder="dist build tests .venv")
 
-    options_frame = ttk.Frame(main_frame)
-    options_frame.pack(fill=tk.X, pady=10)
+    size_row = ctk.CTkFrame(content, fg_color=BG)
+    size_row.pack(fill="x", pady=(0, 8))
+    ctk.CTkLabel(size_row, text="Max file size (KB)", font=ctk.CTkFont(size=12),
+                 text_color=DIM).pack(side="left")
+    size_entry = ctk.CTkEntry(size_row, fg_color=SURFACE, border_color=SURFACE,
+                               text_color=FG, font=ctk.CTkFont(size=13), height=36, width=100)
+    size_entry.pack(side="left", padx=8)
+    size_entry.insert(0, str(DEFAULT_MAX_FILE_SIZE_KB))
 
-    clipboard_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(options_frame, text="Copy to clipboard", variable=clipboard_var).pack(side=tk.LEFT, padx=10)
+    output_entry = labeled_entry_with_browse("Save to file (optional)",
+                                             placeholder="Leave blank to only copy to clipboard",
+                                             browse_fn=browse_output)
 
-    summary_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(options_frame, text="Include summary", variable=summary_var).pack(side=tk.LEFT, padx=10)
+    opts_row = ctk.CTkFrame(content, fg_color=BG)
+    opts_row.pack(fill="x", pady=(0, 12))
+    clipboard_cb = ctk.CTkCheckBox(opts_row, text="Copy to clipboard",
+                                   text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
+                                   font=ctk.CTkFont(size=13))
+    clipboard_cb.select()
+    clipboard_cb.pack(side="left", padx=(0, 20))
+    summary_cb = ctk.CTkCheckBox(opts_row, text="Include summary header",
+                                 text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
+                                 font=ctk.CTkFont(size=13))
+    summary_cb.select()
+    summary_cb.pack(side="left")
 
-    status_var = tk.StringVar(value="")
-    status_label = ttk.Label(main_frame, textvariable=status_var, foreground="gray")
-    status_label.pack(pady=5)
+    status_label = ctk.CTkLabel(content, text="", font=ctk.CTkFont(size=12),
+                                 text_color=DIM, anchor="w")
+    status_label.pack(fill="x", pady=(0, 8))
 
-    button_frame = ttk.Frame(main_frame)
-    button_frame.pack(pady=15)
+    btn_row = ctk.CTkFrame(content, fg_color=BG)
+    btn_row.pack(fill="x")
 
-    def on_run():
-        folder = folder_var.get().strip()
+    def on_run() -> None:
+        folder = folder_entry.get().strip()
         if not folder:
-            status_var.set("Please select a folder")
+            status_label.configure(text="Select a folder first.", text_color=ERROR)
             return
-
-        extensions = ext_var.get().split()
+        extensions = ext_entry.get().split()
         if not extensions:
-            status_var.set("Please enter at least one extension")
+            status_label.configure(text="Enter at least one extension.", text_color=ERROR)
             return
-
-        exclude = [e.strip() for e in exclude_var.get().split() if e.strip()]
-
+        exclude = exclude_entry.get().split()
         try:
-            max_size = int(size_var.get())
+            max_size = int(size_entry.get())
         except ValueError:
             max_size = DEFAULT_MAX_FILE_SIZE_KB
 
-        status_var.set("Processing...")
-        dialog.update()
+        status_label.configure(text="Processing...", text_color=DIM)
+        run_btn.configure(state="disabled")
+        win.update()
 
         try:  # pylint: disable=too-many-try-statements
             result = concatenate_files(
-                folder_path=folder,
-                extensions=extensions,
-                exclude_dirs=exclude,
-                max_file_size_kb=max_size,
-                include_summary=summary_var.get(),
+                folder_path=folder, extensions=extensions,
+                exclude_dirs=exclude, max_file_size_kb=max_size,
+                include_summary=bool(summary_cb.get()),
             )
-
-            output_path = output_var.get().strip()
+            file_count = result.count("# FILE:")
+            output_path = output_entry.get().strip()
             if output_path:
-                Path(output_path).write_text(result, encoding='utf-8')
-                status_var.set(f"Saved to {output_path}")
-
-            if clipboard_var.get():
+                Path(output_path).write_text(result, encoding="utf-8")
+            if clipboard_cb.get():
                 import pyperclip  # pylint: disable=import-outside-toplevel
                 pyperclip.copy(result)
-                if output_path:
-                    status_var.set(f"Saved to {output_path} and copied to clipboard!")
-                else:
-                    status_var.set("Copied to clipboard!")
-
             if on_result:
                 on_result(result)
+            parts = [f"{file_count} files", f"{len(result):,} chars"]
+            if clipboard_cb.get():
+                parts.append("copied to clipboard")
+            if output_path:
+                parts.append(f"saved to {Path(output_path).name}")
+            status_label.configure(text="Done: " + "  /  ".join(parts), text_color=SUCCESS)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            status_label.configure(text=f"Error: {exc}", text_color=ERROR)
+        finally:
+            run_btn.configure(state="normal")
+            win.update()
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            status_var.set(f"Error: {e}")
+    def on_cancel() -> None:
+        win.destroy()
 
-    def on_cancel():
-        dialog.destroy()
+    ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=100, height=38,
+                  fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+                  font=ctk.CTkFont(size=13)).pack(side="right")
+    run_btn = ctk.CTkButton(btn_row, text="Run", command=on_run, width=100, height=38,
+                            fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
+                            font=ctk.CTkFont(size=13, weight="bold"))
+    run_btn.pack(side="right", padx=(0, 8))
 
-    ttk.Button(button_frame, text="Run", command=on_run, width=12).pack(side=tk.LEFT, padx=5)
-    ttk.Button(button_frame, text="Close", command=on_cancel, width=12).pack(side=tk.LEFT, padx=5)
+    win.bind("<Return>", lambda _e: on_run())
+    win.bind("<Escape>", lambda _e: on_cancel())
 
-    folder_entry.focus()
-    center_dialog(dialog)
-    dialog.mainloop()
+    if initial_folder:
+        ext_entry.focus()
+    else:
+        folder_entry.focus()
+    win.mainloop()
 
 
 def main():
