@@ -5,6 +5,8 @@ import numpy as np
 import pyaudio
 from scipy import signal
 
+from src import log
+
 
 class AudioRecorder:
     def __init__(self, target_sample_rate: int = 16000, device_id: Optional[int] = None):
@@ -17,8 +19,7 @@ class AudioRecorder:
         self.device_id = device_id if device_id is not None else self._find_input_device()
 
         self.device_sample_rate = self._get_device_sample_rate()
-        print(f"Device native sample rate: {self.device_sample_rate} Hz")
-        print(f"Will resample to: {self.target_sample_rate} Hz for Whisper")
+        log.audio_info(f"Native: {self.device_sample_rate} Hz -> Whisper: {self.target_sample_rate} Hz")
 
     def _find_input_device(self) -> Optional[int]:
         # pylint: disable=too-many-try-statements
@@ -34,17 +35,17 @@ class AudioRecorder:
 
                     if 'NVIDIA Broadcast' in device_info['name'] or 'nvidia broadcast' in device_info['name'].lower():
                         nvidia_broadcast_device = i
-                        print(f"Auto-detected NVIDIA Broadcast: {device_info['name']}")
+                        log.audio_info(f"Auto-detected NVIDIA Broadcast: {device_info['name']}")
                         return nvidia_broadcast_device
 
             if first_input_device is not None:
                 device_info = self.pyaudio_instance.get_device_info_by_index(first_input_device)
-                print(f"Auto-detected input device: {device_info['name']}")
+                log.audio_info(f"Auto-detected input device: {device_info['name']}")
                 return first_input_device
 
             return None
         except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error finding input device: {e}")
+            log.error(f"Error finding input device: {e}")
             return None
 
     def _get_device_sample_rate(self) -> int:
@@ -81,11 +82,11 @@ class AudioRecorder:
             self.stream.start_stream()
         except Exception as e:
             self.is_recording = False
-            print("\nAvailable audio devices:")
+            log.error("Failed to start recording. Available devices:")
             for i in range(self.pyaudio_instance.get_device_count()):
                 info = self.pyaudio_instance.get_device_info_by_index(i)
                 if info['maxInputChannels'] > 0:
-                    print(f"  {i}: {info['name']}")
+                    log.audio_info(f"  [{i}] {info['name']}")
             raise RuntimeError(f"Failed to start audio recording: {e}") from e
 
     def stop_recording(self) -> Optional[np.ndarray]:

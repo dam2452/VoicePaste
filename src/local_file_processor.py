@@ -1,6 +1,5 @@
 from pathlib import Path
 import subprocess
-import sys
 import tempfile
 from typing import (
     Optional,
@@ -10,6 +9,7 @@ from typing import (
 import numpy as np
 from scipy.io import wavfile
 
+from src import log
 from src.audio_utils import normalize_audio
 
 
@@ -37,7 +37,7 @@ class LocalFileProcessor:
         file_path_str = file_path.strip().strip('"').strip("'")
 
         if not self.is_valid_file_path(file_path_str):
-            print(f"Invalid or unsupported file: {file_path_str}")
+            log.error(f"Invalid or unsupported file: {file_path_str}")
             return None
 
         file_path = Path(file_path_str)
@@ -55,8 +55,7 @@ class LocalFileProcessor:
         # pylint: disable=too-many-try-statements
         try:
             if ext in self.SUPPORTED_VIDEO or ext not in {'.wav'}:
-                print("Extracting audio with FFmpeg...")
-                sys.stdout.flush()
+                log.audio_info(f"Extracting audio with FFmpeg: {filename}")
                 result = subprocess.run(
                     [
                         'ffmpeg',
@@ -71,24 +70,20 @@ class LocalFileProcessor:
                 )
 
                 if result.returncode != 0:
-                    print(f"FFmpeg error: {result.stderr}")
-                    sys.stdout.flush()
+                    log.error(f"FFmpeg error: {result.stderr[:200]}")
                     return None
 
                 if not temp_wav_path.exists():
-                    print(f"Audio extraction failed: {temp_wav_path} not created")
-                    sys.stdout.flush()
+                    log.error("Audio extraction failed - output file not created")
                     return None
 
                 sample_rate, audio = wavfile.read(str(temp_wav_path))
             else:
-                print("Loading WAV file...")
-                sys.stdout.flush()
+                log.audio_info(f"Loading WAV: {filename}")
                 sample_rate, audio = wavfile.read(str(file_path))
 
             if sample_rate != 16000:
-                print(f"Resampling from {sample_rate}Hz to 16000Hz...")
-                sys.stdout.flush()
+                log.audio_info(f"Resampling {sample_rate} Hz -> 16000 Hz")
 
             audio, sample_rate = normalize_audio(audio, sample_rate, 16000)
 
@@ -99,15 +94,14 @@ class LocalFileProcessor:
                 pass
 
             duration = len(audio) / sample_rate
-            print(f"Audio loaded: {duration:.1f}s @ {sample_rate}Hz")
-            sys.stdout.flush()
+            log.audio_info(f"Ready: {duration:.1f}s @ {sample_rate} Hz")
             return audio, filename
 
         except subprocess.TimeoutExpired:
-            print("FFmpeg timeout - file too large or processing error")
+            log.error("FFmpeg timeout - file too large or processing error")
             return None
         except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error processing file: {e}")
+            log.error(f"File processing error: {e}")
             try:
                 if temp_wav_path.exists():
                     temp_wav_path.unlink()

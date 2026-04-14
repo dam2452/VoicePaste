@@ -6,6 +6,8 @@ from typing import Optional
 from faster_whisper import WhisperModel
 import numpy as np
 
+from src import log
+
 
 class Transcriber:  # pylint: disable=too-many-instance-attributes
     def __init__(
@@ -54,15 +56,14 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
 
     def set_gpu_profile(self, profile: str):
         if profile not in ["standard", "high_end"]:
-            print(f"Invalid GPU profile: {profile}. Use 'standard' or 'high_end'")
+            log.error(f"Invalid GPU profile: {profile}. Use 'standard' or 'high_end'")
             return
         self.gpu_profile = profile
         self._set_quality_params()
-        print(f"GPU profile set to: {profile}")
         if profile == "high_end":
-            print("Quality params: beam_size=10, patience=1.5 (RTX 3090+ - better quality, same speed)")
+            log.model(f"GPU profile: [bold]high_end[/bold]  beam={self.beam_size} patience={self.patience} (RTX 3090+)")
         else:
-            print("Quality params: beam_size=5, patience=1.0 (RTX 2080S - balanced)")
+            log.model(f"GPU profile: [bold]standard[/bold]  beam={self.beam_size} patience={self.patience} (RTX 2080S)")
 
     def load_model(self, target_device: Optional[str] = None):
         with self.lock:
@@ -70,7 +71,7 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
                 device = target_device or self.preferred_device
                 compute_type = self.gpu_compute_type if device == "cuda" else self.cpu_compute_type
 
-                print(f"Loading Whisper model '{self.model_size}' on {device}...")
+                log.model(f"Loading whisper-{self.model_size} on [bold]{device.upper()}[/bold] ({compute_type})...")
                 try:
                     self.model = WhisperModel(
                         self.model_size,
@@ -78,11 +79,10 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
                         compute_type=compute_type,
                     )
                     self.current_device = device
-                    print(f"Model loaded successfully on {device.upper()}!")
+                    log.model(f"Model ready on [bold]{device.upper()}[/bold]")
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     if device == "cuda":
-                        print(f"Failed to load model on CUDA: {e}")
-                        print("Falling back to CPU...")
+                        log.warn(f"CUDA load failed: {e} - falling back to CPU")
                         self.model = WhisperModel(
                             self.model_size,
                             device="cpu",
@@ -90,26 +90,26 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
                         )
                         self.current_device = "cpu"
                         self.preferred_device = "cpu"
-                        print("Model loaded successfully on CPU!")
+                        log.model("Model ready on [bold]CPU[/bold]")
                     else:
                         raise
 
     def transcribe(self, audio_data: np.ndarray, language: Optional[str] = None) -> str:
         if self.is_preloading and self.preload_thread is not None:
-            print("Waiting for model preload to complete...")
+            log.model("Waiting for model preload...")
             self.preload_thread.join()
             self.is_preloading = False
 
         if self.model is None:
             self.load_model()
         elif self.current_device == "cpu" and self.preferred_device == "cuda":
-            print("Model on CPU, moving back to GPU for transcription...")
+            log.model("Moving model CPU -> GPU for transcription...")
             self._move_to_gpu()
 
         self.last_used_time = time.time()
         self._cancel_all_timers()
 
-        print(f"Transcribing {len(audio_data)} samples...")
+        log.model(f"Transcribing [dim]{len(audio_data)} samples ({len(audio_data)/16000:.1f}s)[/dim]...")
         segments, _ = self.model.transcribe(
             audio_data,
             language=language,
@@ -125,12 +125,12 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
 
         text_parts = []
         segment_count = 0
-        for segment in segments:
+        for seg in segments:
             segment_count += 1
-            print(f"Segment {segment_count}: '{segment.text}' (confidence: {segment.avg_logprob:.2f})")
-            text_parts.append(segment.text)
+            log.segment(segment_count, seg.text, seg.avg_logprob)
+            text_parts.append(seg.text)
 
-        print(f"Total segments detected: {segment_count}")
+        log.model(f"[dim]{segment_count} segment(s) detected[/dim]")
 
         if not self.keep_model_loaded:
             self._schedule_memory_management()
@@ -140,16 +140,16 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
     def unload_model(self):
         with self.lock:
             if self.model is not None:
-                print("Unloading Whisper model from memory (moving to disk)...")
+                log.model("Unloading model from memory...")
                 self.model = None
                 self.current_device = None
                 gc.collect()
-                print("Model unloaded!")
+                log.model("Model unloaded")
 
     def _move_to_cpu(self):
         with self.lock:
             if self.model is not None and self.current_device == "cuda":
-                print("Moving model from VRAM to RAM (GPU -> CPU)...")
+                log.model("Moving model VRAM -> RAM (GPU -> CPU)...")
                 self.model = None
                 gc.collect()
 
@@ -159,12 +159,12 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
                     compute_type=self.cpu_compute_type,
                 )
                 self.current_device = "cpu"
-                print("Model moved to RAM (CPU)!")
+                log.model("Model moved to RAM (CPU)")
 
     def _move_to_gpu(self):
         with self.lock:
             if self.model is not None and self.current_device == "cpu" and self.preferred_device == "cuda":
-                print("Moving model from RAM to VRAM (CPU -> GPU)...")
+                log.model("Moving model RAM -> VRAM (CPU -> GPU)...")
                 self.model = None
                 gc.collect()
 
@@ -175,9 +175,9 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
                         compute_type=self.gpu_compute_type,
                     )
                     self.current_device = "cuda"
-                    print("Model moved to VRAM (GPU)!")
+                    log.model("Model moved to VRAM (GPU)")
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    print(f"Failed to move to GPU: {e}, keeping on CPU")
+                    log.warn(f"GPU move failed: {e} - keeping on CPU")
                     self.model = WhisperModel(
                         self.model_size,
                         device="cpu",
@@ -221,12 +221,12 @@ class Transcriber:  # pylint: disable=too-many-instance-attributes
             return
 
         if self.model is None:
-            print("Preloading model to VRAM during recording...")
+            log.model("Preloading model to VRAM during recording...")
             self.is_preloading = True
             self.preload_thread = threading.Thread(target=self._preload_worker, daemon=True)
             self.preload_thread.start()
         elif self.current_device == "cpu" and self.preferred_device == "cuda":
-            print("Preloading model to VRAM during recording...")
+            log.model("Moving model to VRAM during recording...")
             self.is_preloading = True
             self.preload_thread = threading.Thread(target=self._move_to_gpu, daemon=True)
             self.preload_thread.start()

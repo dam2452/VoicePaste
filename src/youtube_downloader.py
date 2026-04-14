@@ -10,6 +10,7 @@ import numpy as np
 from scipy.io import wavfile
 import yt_dlp
 
+from src import log
 from src.audio_utils import normalize_audio
 
 
@@ -27,7 +28,7 @@ class YouTubeDownloader:
 
     def download_audio(self, url: str) -> Optional[Tuple[np.ndarray, str]]:
         if not self.is_youtube_url(url):
-            print(f"URL is not a YouTube link: {url}")
+            log.warn(f"Not a YouTube URL: [dim]{url}[/dim]")
             return None
 
         temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
@@ -51,17 +52,17 @@ class YouTubeDownloader:
 
         # pylint: disable=too-many-try-statements
         try:
-            print(f"Downloading audio from YouTube: {url}")
+            log.info(f"Downloading: [dim]{url}[/dim]")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 title = info.get('title', 'Unknown')
-                print(f"Downloaded: {title}")
+                log.info(f"Downloaded: [italic]{title}[/italic]")
 
             if not temp_audio_path.exists():
-                print(f"Audio file not found: {temp_audio_path}")
+                log.error(f"Audio file not found: {temp_audio_path}")
                 return None
 
-            print("Converting audio to 16kHz mono...")
+            log.audio_info("Converting to 16 kHz mono...")
             sample_rate, audio = wavfile.read(str(temp_audio_path))
             audio, sample_rate = normalize_audio(audio, sample_rate, 16000)
 
@@ -70,11 +71,11 @@ class YouTubeDownloader:
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
-            print(f"Audio converted: {len(audio)/sample_rate:.1f}s @ {sample_rate}Hz")
+            log.audio_info(f"Ready: {len(audio)/sample_rate:.1f}s @ {sample_rate} Hz")
             return audio, title
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Error downloading YouTube audio: {e}")
+            log.error(f"YouTube download error: {e}")
             try:
                 if temp_audio_path.exists():
                     temp_audio_path.unlink()

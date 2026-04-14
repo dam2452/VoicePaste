@@ -8,6 +8,8 @@ from typing import (
     Optional,
 )
 
+from src import log
+
 from src.audio_recorder import AudioRecorder
 from src.clipboard_manager import ClipboardManager
 from src.file_concatenator import (
@@ -70,32 +72,25 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         )
 
     def start(self):
-        print("VoicePaste started!")
+        log.startup_banner()
 
         device_info = self.audio_recorder.get_device_info()
         if device_info:
-            print(f"Using audio device: {device_info['name']}")
+            log.audio_device(device_info['name'], self.audio_recorder.device_sample_rate)
         else:
-            print("Warning: No audio input device found!")
-            print("Please check your microphone connection.")
+            log.warn("No audio input device found - check microphone connection")
 
-        print("Press Shift+V to start/stop recording...")
-        print("Press Shift+Y to transcribe YouTube video from clipboard...")
-        print("Press Shift+F to transcribe audio/video file from clipboard...")
-        print("Press Shift+K to concatenate files (folder path -> file path for extension)...")
-        print("Press Ctrl+C to quit")
-
-        print("Starting hotkey listener...")
+        log.info("Starting hotkey listener...")
         self.hotkey_handler.start()
 
-        print("Starting system tray icon...")
+        log.info("Starting system tray icon...")
         self.tray_icon.start()
 
         try:
             while not self.shutdown_event.is_set():
                 self.shutdown_event.wait(timeout=0.5)
         except KeyboardInterrupt:
-            print("\nReceived Ctrl+C, shutting down...")
+            log.info("Ctrl+C received - shutting down...")
             self.quit()
 
     def _try_use_cached_transcription(self, key: str) -> bool:
@@ -104,9 +99,9 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
 
         cached_entry = self.transcription_cache[key]
         if time.time() - cached_entry['timestamp'] < self.cache_ttl:
-            print(f"Using cached transcription for: {key}")
+            log.info(f"Cache hit: [dim]{key[:80]}[/dim]")
             self.clipboard_manager.copy_to_clipboard(cached_entry['text'])
-            print("Cached transcription copied to clipboard!")
+            log.clip("Cached transcription copied to clipboard")
             return True
 
         del self.transcription_cache[key]
@@ -125,35 +120,35 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
             try:
                 url = self.clipboard_manager.get_from_clipboard()
                 if not url or not isinstance(url, str):
-                    print("No URL in clipboard")
+                    log.warn("Clipboard does not contain a URL")
                     return
 
                 url = url.strip()
                 if not self.youtube_downloader.is_youtube_url(url):
-                    print(f"Not a YouTube URL: {url}")
+                    log.warn(f"Not a YouTube URL: [dim]{url[:80]}[/dim]")
                     return
 
                 if self._try_use_cached_transcription(url):
                     return
 
-                print(f"Processing YouTube URL: {url}")
+                log.info(f"YouTube: [dim]{url}[/dim]")
                 self.tray_icon.update_status("downloading")
 
                 result = self.youtube_downloader.download_audio(url)
                 if not result:
-                    print("Failed to download audio")
+                    log.error("Audio download failed")
                     self.tray_icon.update_status("idle")
                     return
 
                 audio_data, title = result
-                print(f"Transcribing: {title}")
+                log.info(f"Transcribing: [italic]{title}[/italic]")
                 self.tray_icon.update_status("processing")
 
                 text = self.transcriber.transcribe(audio_data)
                 if text:
-                    print(f"Transcription ({len(text)} chars): {text[:100]}...")
+                    log.xscr(text)
                     self.clipboard_manager.copy_to_clipboard(text)
-                    print("Transcription copied to clipboard!")
+                    log.clip(f"Copied to clipboard ({len(text)} chars)")
 
                     self.transcription_cache[url] = {
                         'text': text,
@@ -164,12 +159,12 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                     self._save_cache()
                     self._schedule_cache_cleanup()
                 else:
-                    print("No transcription result")
+                    log.warn("No transcription result")
 
                 self.tray_icon.update_status("idle")
 
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"YouTube transcription error: {e}")
+                log.error(f"YouTube transcription error: {e}")
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_youtube, daemon=True).start()
@@ -180,16 +175,16 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
             try:
                 file_paths = self.clipboard_manager.get_file_paths_from_clipboard()
                 if not file_paths:
-                    print("No file or file path in clipboard")
+                    log.warn("Clipboard does not contain a file path")
                     return
 
                 valid_files = [fp for fp in file_paths if self.local_file_processor.is_valid_file_path(fp)]
                 if not valid_files:
-                    print("No valid audio/video files in clipboard")
+                    log.warn("No supported audio/video files in clipboard")
                     return
 
-                print(f"Found {len(valid_files)} file(s) to process")
-                sys.stdout.flush()
+                total = len(valid_files)
+                log.info(f"Found [cyan]{total}[/cyan] file(s) to process")
 
                 all_transcriptions = []
                 self.tray_icon.update_status("processing")
@@ -197,8 +192,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                 for idx, file_path in enumerate(valid_files, 1):
                     cache_entry = self.transcription_cache.get(file_path)
                     if cache_entry and time.time() - cache_entry['timestamp'] < self.cache_ttl:
-                        print(f"[{idx}/{len(valid_files)}] Using cached transcription for: {Path(file_path).name}")
-                        sys.stdout.flush()
+                        log.info(f"[{idx}/{total}] Cache hit: [dim]{Path(file_path).name}[/dim]")
                         all_transcriptions.append({
                             'filename': Path(file_path).name,
                             'text': cache_entry['text'],
@@ -206,23 +200,19 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                         })
                         continue
 
-                    print(f"[{idx}/{len(valid_files)}] Processing file: {file_path}")
-                    sys.stdout.flush()
+                    log.info(f"[{idx}/{total}] Processing: [dim]{Path(file_path).name}[/dim]")
 
                     result = self.local_file_processor.process_file(file_path)
                     if not result:
-                        print(f"Failed to process file: {file_path}")
-                        sys.stdout.flush()
+                        log.error(f"Failed to process: {Path(file_path).name}")
                         continue
 
                     audio_data, filename = result
-                    print(f"Transcribing: {filename}")
-                    sys.stdout.flush()
+                    log.info(f"Transcribing: [italic]{filename}[/italic]")
 
                     text = self.transcriber.transcribe(audio_data)
                     if text:
-                        print(f"Transcription ({len(text)} chars): {text[:100]}...")
-                        sys.stdout.flush()
+                        log.xscr(text)
 
                         self.transcription_cache[file_path] = {
                             'text': text,
@@ -239,8 +229,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                             'from_cache': False,
                         })
                     else:
-                        print(f"No transcription result for: {filename}")
-                        sys.stdout.flush()
+                        log.warn(f"No transcription result for: {filename}")
 
                 if all_transcriptions:
                     if len(all_transcriptions) == 1:
@@ -252,16 +241,14 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                         final_text = "\n\n".join(parts)
 
                     self.clipboard_manager.copy_to_clipboard(final_text)
-                    print(f"\n{len(all_transcriptions)} transcription(s) copied to clipboard!")
-                    sys.stdout.flush()
+                    log.clip(f"{len(all_transcriptions)} transcription(s) copied to clipboard")
                 else:
-                    print("No transcriptions to copy")
-                    sys.stdout.flush()
+                    log.warn("No transcriptions to copy")
 
                 self.tray_icon.update_status("idle")
 
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"File transcription error: {e}")
+                log.error(f"File transcription error: {e}")
                 self.tray_icon.update_status("idle")
 
         threading.Thread(target=process_files, daemon=True).start()
@@ -269,16 +256,16 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
     def on_concat_hotkey(self):
         clipboard_text = self.clipboard_manager.get_from_clipboard()
         if not clipboard_text:
-            print("Clipboard empty")
+            log.warn("Clipboard is empty")
             return
         message = self.concat_session.process_clipboard(clipboard_text)
-        print(message)
+        log.info(message)
 
     def _on_concat_complete(self, result: str):
         self.clipboard_manager.copy_to_clipboard(result)
 
     def _on_concat_status(self, message: str):
-        print(message)
+        log.info(message)
 
     def show_concatenator_dialog(self):
         def process():
@@ -288,17 +275,17 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
     def _start_recording(self):
         with self.processing_lock:
             try:
-                print("Started recording...")
+                log.rec("Recording...")
                 self.is_recording = True
                 self.tray_icon.update_status("recording")
                 self.audio_recorder.start_recording()
                 self.transcriber.preload_for_recording()
             except RuntimeError as e:
-                print(f"Error starting recording: {e}")
+                log.error(f"Recording start error: {e}")
                 self.is_recording = False
                 self.tray_icon.update_status("idle")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"Unexpected error: {e}")
+                log.error(f"Unexpected error: {e}")
                 self.is_recording = False
                 self.tray_icon.update_status("idle")
 
@@ -307,34 +294,33 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
 
         def process_audio():
             with self.processing_lock:
-                print("Stopped recording. Processing...")
+                log.rec("Recording stopped - processing...")
                 self.tray_icon.update_status("processing")
 
                 audio_data = self.audio_recorder.stop_recording()
 
                 if audio_data is None:
-                    print("No audio data captured!")
+                    log.warn("No audio data captured")
                     self.tray_icon.update_status("idle")
                     return
 
                 duration = len(audio_data) / 16000
-                print(f"Recorded {duration:.2f}s of audio, {len(audio_data)} samples")
 
                 if len(audio_data) < 1600:
-                    print("Recording too short, ignoring...")
+                    log.warn(f"Recording too short ({duration:.2f}s) - ignoring")
                     self.tray_icon.update_status("idle")
                     return
 
                 import numpy as np  # pylint: disable=import-outside-toplevel
                 rms = np.sqrt(np.mean(audio_data**2))
-                print(f"Audio RMS level: {rms:.6f}")
+                log.audio_info(f"{duration:.2f}s / {len(audio_data)} samples / RMS {rms:.4f}")
 
                 try:
                     text = self.transcriber.transcribe(audio_data)
                     if text:
-                        print(f"Transcription: {text}")
+                        log.xscr(text)
                         self.clipboard_manager.copy_to_clipboard(text)
-                        print("Copied to clipboard!")
+                        log.clip(f"Copied to clipboard ({len(text)} chars)")
 
                         cache_key = f"voice_{int(time.time() * 1000)}"
                         self.transcription_cache[cache_key] = {
@@ -346,9 +332,9 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                         self._save_cache()
                         self._schedule_cache_cleanup()
                     else:
-                        print("No transcription result (empty text from Whisper)")
+                        log.warn("Whisper returned no text")
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    print(f"Transcription error: {e}")
+                    log.error(f"Transcription error: {e}")
 
                 self.tray_icon.update_status("idle")
 
@@ -363,7 +349,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
     def toggle_keep_model(self):
         self.transcriber.keep_model_loaded = not self.transcriber.keep_model_loaded
         status = "enabled" if self.transcriber.keep_model_loaded else "disabled"
-        print(f"Keep model loaded: {status}")
+        log.model(f"Keep model loaded: {status}")
 
     def set_gpu_profile(self, profile: str):
         self.transcriber.set_gpu_profile(profile)
@@ -388,7 +374,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
         if key in self.transcription_cache:
             text = self.transcription_cache[key]['text']
             self.clipboard_manager.copy_to_clipboard(text)
-            print(f"Copied from history: {self.transcription_cache[key]['title']}")
+            log.clip(f"Copied from history: {self.transcription_cache[key]['title']}")
             return True
         return False
 
@@ -397,7 +383,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
             title = self.transcription_cache[key]['title']
             del self.transcription_cache[key]
             self._save_cache()
-            print(f"Deleted from history: {title}")
+            log.info(f"Deleted from history: {title}")
             return True
         return False
 
@@ -482,7 +468,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                     self.clipboard_manager.copy_to_clipboard(result['url'])
                     self.on_youtube_hotkey()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"Error in YouTube dialog: {e}")
+                log.error(f"YouTube dialog error: {e}")
 
         threading.Thread(target=process, daemon=True).start()
 
@@ -518,7 +504,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                     self.clipboard_manager.copy_to_clipboard('\n'.join(file_paths))
                     self.on_file_hotkey()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"Error in file dialog: {e}")
+                log.error(f"File dialog error: {e}")
 
         threading.Thread(target=process, daemon=True).start()
 
@@ -542,16 +528,16 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
                                     'title': 'Legacy Entry',
                                 }
                     if self.transcription_cache:
-                        print(f"Loaded {len(self.transcription_cache)} cached transcription(s)")
+                        log.info(f"Loaded [cyan]{len(self.transcription_cache)}[/cyan] cached transcription(s)")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Failed to load cache: {e}")
+            log.error(f"Failed to load cache: {e}")
 
     def _save_cache(self):
         try:
             with open(self.cache_file, 'w', encoding='utf-8') as f:
                 json.dump(self.transcription_cache, f, ensure_ascii=False, indent=2)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            print(f"Failed to save cache: {e}")
+            log.error(f"Failed to save cache: {e}")
 
     def _schedule_cache_cleanup(self):
         if self.cache_cleanup_timer:
@@ -571,7 +557,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
 
         for key in keys_to_remove:
             del self.transcription_cache[key]
-            print(f"Removed cached transcription for: {key}")
+            log.info(f"Cache expired: [dim]{key[:80]}[/dim]")
 
         self._save_cache()
 
@@ -579,7 +565,7 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
             self._schedule_cache_cleanup()
 
     def quit(self):
-        print("Shutting down...")
+        log.info("Shutting down...")
         self.is_running = False
         if self.cache_cleanup_timer:
             self.cache_cleanup_timer.cancel()

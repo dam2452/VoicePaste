@@ -5,17 +5,23 @@ import sys
 import pyaudio
 
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from src.log import console  # pylint: disable=wrong-import-position
 from src.voice_paste_app import VoicePasteApp  # pylint: disable=wrong-import-position
 
 
 def list_devices():
-    print("Available audio input devices:")
+    from rich.table import Table  # pylint: disable=import-outside-toplevel
     p = pyaudio.PyAudio()
+    table = Table(title="Dostepne urzadzenia wejsciowe audio", border_style="cyan")
+    table.add_column("ID", style="bold cyan", justify="right")
+    table.add_column("Nazwa", style="white")
+    table.add_column("Kanaly", style="dim", justify="right")
     for i in range(p.get_device_count()):
         info = p.get_device_info_by_index(i)
         if info['maxInputChannels'] > 0:
-            print(f"  {i}: {info['name']} (channels: {info['maxInputChannels']})")
+            table.add_row(str(i), info['name'], str(info['maxInputChannels']))
     p.terminate()
+    console.print(table)
 
 
 def main():
@@ -56,7 +62,8 @@ def main():
     try:
         app.start()
     except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"Error: {e}")
+        from src.log import error  # pylint: disable=import-outside-toplevel
+        error(f"Krytyczny blad: {e}")
         sys.exit(1)
 
 
