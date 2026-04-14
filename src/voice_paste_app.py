@@ -461,10 +461,10 @@ class VoicePasteApp:  # pylint: disable=too-many-instance-attributes
 
                 btn_row = ctk.CTkFrame(content, fg_color=BG)
                 btn_row.pack(fill="x")
-                ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=100, height=38,
+                ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=110, height=44,
                               fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
                               font=ctk.CTkFont(size=13)).pack(side="right")
-                ctk.CTkButton(btn_row, text="Transcribe", command=on_ok, width=120, height=38,
+                ctk.CTkButton(btn_row, text="Transcribe", command=on_ok, width=130, height=44,
                               fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
                               font=ctk.CTkFont(size=13, weight="bold")).pack(side="right", padx=(0, 8))
 

@@ -473,10 +473,10 @@ def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statem
     def on_cancel() -> None:
         win.destroy()
 
-    ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=100, height=38,
+    ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=110, height=44,
                   fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
                   font=ctk.CTkFont(size=13)).pack(side="right")
-    run_btn = ctk.CTkButton(btn_row, text="Run", command=on_run, width=100, height=38,
+    run_btn = ctk.CTkButton(btn_row, text="Run", command=on_run, width=110, height=44,
                             fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
                             font=ctk.CTkFont(size=13, weight="bold"))
     run_btn.pack(side="right", padx=(0, 8))

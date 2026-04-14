@@ -201,13 +201,13 @@ class HistoryWindow:
                 _load()
 
         ctk.CTkButton(btn_bar, text="Copy to Clipboard", command=_on_copy,
-                      height=36, fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
+                      height=44, fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
                       font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=(0, 8))
         ctk.CTkButton(btn_bar, text="Export", command=_on_export,
-                      height=36, fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+                      height=44, fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
                       font=ctk.CTkFont(size=13)).pack(side="left", padx=(0, 8))
         ctk.CTkButton(btn_bar, text="Delete", command=_on_delete,
-                      height=36, fg_color="#45475a", text_color="#f38ba8", hover_color="#5a3a3a",
+                      height=44, fg_color="#45475a", text_color="#f38ba8", hover_color="#5a3a3a",
                       font=ctk.CTkFont(size=13)).pack(side="left")
         ctk.CTkLabel(btn_bar, text="Click to select  |  Double-click to copy",
                      font=ctk.CTkFont(size=11), text_color=DIM).pack(side="right")
