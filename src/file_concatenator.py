@@ -328,7 +328,7 @@ def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statem
     )
 
     win = ctk.CTk()
-    setup_window(win, "VoicePaste - File Concatenator", 620, 530)
+    setup_window(win, "VoicePaste - File Concatenator", 620, 590)
 
     content = ctk.CTkFrame(win, fg_color=BG)
     content.pack(fill="both", expand=True, padx=24, pady=20)
