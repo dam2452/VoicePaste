@@ -1,0 +1,9 @@
+DODATKOWE WYMAGANIA — WERSJA POD TTS (text-to-speech):
+
+Streszczenie ma być czytane na głos przez syntezator mowy, więc:
+- Długość: 1–3 minuty czytania (ok. 150–450 słów, zależnie od gęstości tematu).
+- Forma: płynna narracja w akapitach, NIE lista punktowana, NIE nagłówki, NIE markdown. Jedno po drugim, jak gdybyś komuś tłumaczył temat na głos.
+- Wyrzuć wszystko, co się źle czyta lub brzmi jak bełkot w TTS: adresy IP, URL-e, długie identyfikatory, skróty literowe bez rozwinięcia, surowy kod, nazwy plików, przypisy numeryczne, cytowania typu „(Kowalski, 2021)", znaki specjalne, wzory matematyczne w notacji symbolicznej.
+- Liczby i jednostki zapisuj słownie lub w formie naturalnej do wymówienia („około dwudziestu procent", „trzy i pół tysiąca" zamiast „3.5k"). Skróty rozwijaj przy pierwszym użyciu.
+- Tylko clue — najważniejsza teza, mechanizm w skrócie, główny wynik, wniosek. Resztę odetnij.
+- Ton: rzeczowy, spokojny, bez egzaltacji i bez żargonu, jakbyś streszczał koledze w drodze na kawę.

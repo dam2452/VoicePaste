@@ -1,12 +1,29 @@
 from datetime import datetime
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from typing import Callable, Dict, List, Optional
+from tkinter import (
+    filedialog,
+    messagebox,
+)
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+)
 
 import customtkinter as ctk
 
-from src.dialog_utils import ACCENT, BG, DIM, ERROR, FG, SUCCESS, SURFACE, setup_window
+from src.infrastructure.ui.dialog_utils import (
+    ACCENT,
+    BG,
+    DIM,
+    ERROR,
+    FG,
+    SUCCESS,
+    SURFACE,
+    setup_window,
+)
 
 
 class HistoryWindow:
@@ -39,7 +56,7 @@ class HistoryWindow:
             self._window.destroy()
         self._window = None
 
-    def _create_window(self) -> None:  # pylint: disable=too-many-statements,too-many-locals
+    def _create_window(self) -> None:
         self._is_open = True
         win = ctk.CTk()
         self._window = win
@@ -57,34 +74,42 @@ class HistoryWindow:
         toolbar = ctk.CTkFrame(main, fg_color=BG)
         toolbar.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkLabel(toolbar, text="Transcription History",
-                     font=ctk.CTkFont(size=18, weight="bold"),
-                     text_color=FG).pack(side="left")
+        ctk.CTkLabel(
+            toolbar, text="Transcription History",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=FG,
+        ).pack(side="left")
 
         search_var = tk.StringVar()
         search_var.trace("w", lambda *_: _apply_filters())
-        search_entry = ctk.CTkEntry(toolbar, textvariable=search_var, width=260, height=34,
-                                    placeholder_text="Search...", fg_color=SURFACE,
-                                    border_color=SURFACE, text_color=FG,
-                                    placeholder_text_color=DIM, font=ctk.CTkFont(size=12))
+        search_entry = ctk.CTkEntry(
+            toolbar, textvariable=search_var, width=260, height=34,
+            placeholder_text="Search...", fg_color=SURFACE,
+            border_color=SURFACE, text_color=FG,
+            placeholder_text_color=DIM, font=ctk.CTkFont(size=12),
+        )
         search_entry.pack(side="left", padx=(20, 8))
 
         filter_var = tk.StringVar(value="all")
-        source_filter = ctk.CTkOptionMenu(toolbar, variable=filter_var,
-                                          values=["all", "voice", "youtube", "file"],
-                                          command=lambda _v: _apply_filters(),
-                                          fg_color=SURFACE, button_color=SURFACE,
-                                          button_hover_color="#3a3a5c", text_color=FG,
-                                          dropdown_fg_color=SURFACE, dropdown_text_color=FG,
-                                          font=ctk.CTkFont(size=12), width=110, height=34)
+        source_filter = ctk.CTkOptionMenu(
+            toolbar, variable=filter_var,
+            values=["all", "voice", "youtube", "file"],
+            command=lambda _v: _apply_filters(),
+            fg_color=SURFACE, button_color=SURFACE,
+            button_hover_color="#3a3a5c", text_color=FG,
+            dropdown_fg_color=SURFACE, dropdown_text_color=FG,
+            font=ctk.CTkFont(size=12), width=110, height=34,
+        )
         source_filter.pack(side="left")
 
         status_label = ctk.CTkLabel(toolbar, text="", font=ctk.CTkFont(size=12), text_color=DIM)
         status_label.pack(side="left", padx=16)
 
-        ctk.CTkButton(toolbar, text="Refresh", command=lambda: _load(),
-                      width=80, height=34, fg_color=SURFACE, text_color=FG,
-                      hover_color="#3a3a5c", font=ctk.CTkFont(size=12)).pack(side="right")
+        ctk.CTkButton(
+            toolbar, text="Refresh", command=lambda: _load(),  # pylint: disable=unnecessary-lambda
+            width=80, height=34, fg_color=SURFACE, text_color=FG,
+            hover_color="#3a3a5c", font=ctk.CTkFont(size=12),
+        ).pack(side="right")
 
         sep = ctk.CTkFrame(main, fg_color="#45475a", height=1)
         sep.pack(fill="x", pady=(0, 6))
@@ -92,11 +117,15 @@ class HistoryWindow:
         header = ctk.CTkFrame(main, fg_color=BG)
         header.pack(fill="x", padx=4, pady=(0, 4))
         for text, w in [("Date & Time", 155), ("Source", 80), ("Title", 230), ("Preview", 0)]:
-            ctk.CTkLabel(header, text=text, font=ctk.CTkFont(size=11),
-                         text_color=DIM, width=w, anchor="w").pack(side="left", padx=4)
+            ctk.CTkLabel(
+                header, text=text, font=ctk.CTkFont(size=11),
+                text_color=DIM, width=w, anchor="w",
+            ).pack(side="left", padx=4)
 
-        list_frame = ctk.CTkScrollableFrame(main, fg_color=BG, scrollbar_button_color=SURFACE,
-                                            scrollbar_button_hover_color="#3a3a5c")
+        list_frame = ctk.CTkScrollableFrame(
+            main, fg_color=BG, scrollbar_button_color=SURFACE,
+            scrollbar_button_hover_color="#3a3a5c",
+        )
         list_frame.pack(fill="both", expand=True)
 
         sep2 = ctk.CTkFrame(main, fg_color="#45475a", height=1)
@@ -139,14 +168,22 @@ class HistoryWindow:
                 src_colors = {"Voice": "#a6e3a1", "Youtube": "#f38ba8", "File": "#89b4fa"}
                 src_color = src_colors.get(src_text, ACCENT)
 
-                ctk.CTkLabel(row, text=date_str, font=ctk.CTkFont(size=11), text_color=DIM,
-                             width=155, anchor="w").pack(side="left", padx=4, pady=8)
-                ctk.CTkLabel(row, text=src_text, font=ctk.CTkFont(size=11, weight="bold"),
-                             text_color=src_color, width=80, anchor="w").pack(side="left", padx=4)
-                ctk.CTkLabel(row, text=entry["title"], font=ctk.CTkFont(size=12),
-                             text_color=FG, width=230, anchor="w").pack(side="left", padx=4)
-                ctk.CTkLabel(row, text=preview, font=ctk.CTkFont(size=11),
-                             text_color=DIM, anchor="w").pack(side="left", padx=4, fill="x", expand=True)
+                ctk.CTkLabel(
+                    row, text=date_str, font=ctk.CTkFont(size=11), text_color=DIM,
+                    width=155, anchor="w",
+                ).pack(side="left", padx=4, pady=8)
+                ctk.CTkLabel(
+                    row, text=src_text, font=ctk.CTkFont(size=11, weight="bold"),
+                    text_color=src_color, width=80, anchor="w",
+                ).pack(side="left", padx=4)
+                ctk.CTkLabel(
+                    row, text=entry["title"], font=ctk.CTkFont(size=12),
+                    text_color=FG, width=230, anchor="w",
+                ).pack(side="left", padx=4)
+                ctk.CTkLabel(
+                    row, text=preview, font=ctk.CTkFont(size=11),
+                    text_color=DIM, anchor="w",
+                ).pack(side="left", padx=4, fill="x", expand=True)
 
                 row.bind("<Button-1>", lambda _e, k=key: _select(k))
                 for child in row.winfo_children():
@@ -163,7 +200,7 @@ class HistoryWindow:
         def _copy_key(key: str) -> None:
             self._copy_from_history(key)
             status_label.configure(text="Copied to clipboard.", text_color=SUCCESS)
-            win.after(2000, lambda: status_label.configure(text=f"", text_color=DIM))
+            win.after(2000, lambda: status_label.configure(text="", text_color=DIM))
 
         def _on_copy() -> None:
             if not selected_key["value"]:
@@ -194,23 +231,33 @@ class HistoryWindow:
             if not selected_key["value"]:
                 status_label.configure(text="Select an entry first.", text_color=ERROR)
                 return
-            if messagebox.askyesno("Confirm Delete",
-                                   "Delete this transcription?\nThis cannot be undone."):
+            if messagebox.askyesno(
+                "Confirm Delete",
+                "Delete this transcription?\nThis cannot be undone.",
+            ):
                 self._delete_from_history(selected_key["value"])
                 selected_key["value"] = None
                 _load()
 
-        ctk.CTkButton(btn_bar, text="Copy to Clipboard", command=_on_copy,
-                      height=44, fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
-                      font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_bar, text="Export", command=_on_export,
-                      height=44, fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
-                      font=ctk.CTkFont(size=13)).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_bar, text="Delete", command=_on_delete,
-                      height=44, fg_color="#45475a", text_color="#f38ba8", hover_color="#5a3a3a",
-                      font=ctk.CTkFont(size=13)).pack(side="left")
-        ctk.CTkLabel(btn_bar, text="Click to select  |  Double-click to copy",
-                     font=ctk.CTkFont(size=11), text_color=DIM).pack(side="right")
+        ctk.CTkButton(
+            btn_bar, text="Copy to Clipboard", command=_on_copy,
+            height=44, fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_bar, text="Export", command=_on_export,
+            height=44, fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+            font=ctk.CTkFont(size=13),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_bar, text="Delete", command=_on_delete,
+            height=44, fg_color="#45475a", text_color="#f38ba8", hover_color="#5a3a3a",
+            font=ctk.CTkFont(size=13),
+        ).pack(side="left")
+        ctk.CTkLabel(
+            btn_bar, text="Click to select  |  Double-click to copy",
+            font=ctk.CTkFont(size=11), text_color=DIM,
+        ).pack(side="right")
 
         _load()
         win.mainloop()

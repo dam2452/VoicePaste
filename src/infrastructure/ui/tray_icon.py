@@ -9,7 +9,7 @@ import pystray
 
 
 class TrayIcon:
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         on_quit: Callable,
         on_toggle_recording: Callable = None,
@@ -21,6 +21,8 @@ class TrayIcon:
         get_gpu_profile: Callable = None,
         on_show_history: Callable = None,
         on_file_concatenator: Callable = None,
+        on_tts: Callable = None,
+        on_summarize: Callable = None,
     ):
         self.on_quit = on_quit
         self.on_toggle_recording = on_toggle_recording
@@ -32,6 +34,8 @@ class TrayIcon:
         self.get_gpu_profile = get_gpu_profile
         self.on_show_history = on_show_history
         self.on_file_concatenator = on_file_concatenator
+        self.on_tts = on_tts
+        self.on_summarize = on_summarize
         self.icon = None
         self.status = "idle"
         self.thread = None
@@ -53,6 +57,9 @@ class TrayIcon:
         elif status == "processing":
             self._draw_microphone(draw, size, (33, 150, 243))
             self._draw_clipboard(draw, size, (33, 150, 243))
+        elif status == "speaking":
+            self._draw_microphone(draw, size, (255, 152, 0))
+            self._draw_speaker(draw, size, (255, 152, 0))
 
         return image
 
@@ -170,6 +177,44 @@ class TrayIcon:
             fill=color, width=line_width,
         )
 
+    @staticmethod
+    def _draw_speaker(draw: ImageDraw.ImageDraw, size: int, color: tuple):
+        spk_size = int(size * 0.32)
+        spk_x = size - spk_size - int(size * 0.04)
+        spk_y = size - spk_size - int(size * 0.04)
+        body_w = int(spk_size * 0.4)
+        body_h = int(spk_size * 0.5)
+
+        cx = spk_x + spk_size // 2
+        cy = spk_y + spk_size // 2
+
+        draw.polygon(
+            [
+                (cx - body_w, cy - body_h // 3),
+                (cx - body_w // 2, cy - body_h // 3),
+                (cx - body_w // 2, cy + body_h // 3),
+                (cx - body_w, cy + body_h // 3),
+            ],
+            fill=color,
+        )
+        draw.polygon(
+            [
+                (cx - body_w // 2, cy - body_h // 3),
+                (cx + body_w // 2, cy - body_h),
+                (cx + body_w // 2, cy + body_h),
+                (cx - body_w // 2, cy + body_h // 3),
+            ],
+            fill=color,
+        )
+
+        arc_width = int(size * 0.03)
+        for i in range(1, 3):
+            r = int(spk_size * 0.15 * i)
+            draw.arc(
+                [cx + body_w // 2 - r, cy - r, cx + body_w // 2 + r, cy + r],
+                start=300, end=60, fill=color, width=arc_width,
+            )
+
     def start(self):
         def create_menu():
             return pystray.Menu(
@@ -197,6 +242,16 @@ class TrayIcon:
                     "File Concatenator... (Shift+K)",
                     self._file_concatenator_action,
                     enabled=bool(self.on_file_concatenator),
+                ),
+                pystray.MenuItem(
+                    "Read Aloud (Shift+L)",
+                    self._tts_action,
+                    enabled=bool(self.on_tts),
+                ),
+                pystray.MenuItem(
+                    "Summarize (Shift+S)",
+                    self._summarize_action,
+                    enabled=bool(self.on_summarize),
                 ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
@@ -254,6 +309,9 @@ class TrayIcon:
             elif status == "processing":
                 self.icon.icon = self.create_icon_image("processing")
                 self.icon.title = "VoicePaste - Processing"
+            elif status == "speaking":
+                self.icon.icon = self.create_icon_image("speaking")
+                self.icon.title = "VoicePaste - Speaking..."
             else:
                 self.icon.icon = self.create_icon_image("idle")
                 self.icon.title = "VoicePaste - Ready"
@@ -264,9 +322,10 @@ class TrayIcon:
             "recording": "Recording...",
             "downloading": "Downloading...",
             "processing": "Processing...",
+            "speaking": "Speaking...",
         }
         status = status_map.get(self.status, self.status.capitalize())
-        icon = {"idle": "✓", "recording": "●", "downloading": "⬇", "processing": "⚙"}.get(self.status, "○")
+        icon = {"idle": "✓", "recording": "●", "downloading": "⬇", "processing": "⚙", "speaking": "🔊"}.get(self.status, "○")
         return f"{icon} Status: {status}"
 
     def _get_model_location(self, _=None):
@@ -303,6 +362,14 @@ class TrayIcon:
     def _file_concatenator_action(self, _=None):
         if self.on_file_concatenator:
             self.on_file_concatenator()
+
+    def _tts_action(self, _=None):
+        if self.on_tts:
+            self.on_tts()
+
+    def _summarize_action(self, _=None):
+        if self.on_summarize:
+            self.on_summarize()
 
     def _show_history_action(self, _=None):
         if self.on_show_history:

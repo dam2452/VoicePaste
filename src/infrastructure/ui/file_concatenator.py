@@ -97,7 +97,7 @@ def concatenate_specific_files(
     return result
 
 
-def concatenate_files(  # pylint: disable=too-many-locals
+def concatenate_files(
     folder_path: str,
     extensions: List[str],
     exclude_dirs: Optional[List[str]] = None,
@@ -315,16 +315,23 @@ class ConcatenatorSession:
         return f"Folder: {self.folder_path} | Extensions: {', '.join(sorted(self.extensions))}"
 
 
-def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statements
+def show_concatenator_dialog(
     on_result: Optional[Callable[[str], None]] = None,
     initial_folder: Optional[str] = None,
 ) -> None:
-    import tkinter as tk  # pylint: disable=import-outside-toplevel
     from tkinter import filedialog  # pylint: disable=import-outside-toplevel
 
     import customtkinter as ctk  # pylint: disable=import-outside-toplevel
-    from src.dialog_utils import (  # pylint: disable=import-outside-toplevel
-        ACCENT, BG, DIM, ERROR, FG, SUCCESS, SURFACE, setup_window,
+
+    from src.infrastructure.ui.dialog_utils import (  # pylint: disable=import-outside-toplevel
+        ACCENT,
+        BG,
+        DIM,
+        ERROR,
+        FG,
+        SUCCESS,
+        SURFACE,
+        setup_window,
     )
 
     win = ctk.CTk()
@@ -333,39 +340,55 @@ def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statem
     content = ctk.CTkFrame(win, fg_color=BG)
     content.pack(fill="both", expand=True, padx=24, pady=20)
 
-    ctk.CTkLabel(content, text="File Concatenator", font=ctk.CTkFont(size=20, weight="bold"),
-                 text_color=FG).pack(anchor="w")
-    ctk.CTkLabel(content, text="Collect source files into a single block for LLM context.",
-                 font=ctk.CTkFont(size=12), text_color=DIM).pack(anchor="w", pady=(2, 10))
+    ctk.CTkLabel(
+        content, text="File Concatenator", font=ctk.CTkFont(size=20, weight="bold"),
+        text_color=FG,
+    ).pack(anchor="w")
+    ctk.CTkLabel(
+        content, text="Collect source files into a single block for LLM context.",
+        font=ctk.CTkFont(size=12), text_color=DIM,
+    ).pack(anchor="w", pady=(2, 10))
 
     def labeled_entry(label: str, value: str = "", placeholder: str = "") -> ctk.CTkEntry:
-        ctk.CTkLabel(content, text=label, font=ctk.CTkFont(size=12),
-                     text_color=DIM, anchor="w").pack(fill="x")
-        entry = ctk.CTkEntry(content, fg_color=SURFACE, border_color=SURFACE,
-                             text_color=FG, placeholder_text=placeholder,
-                             font=ctk.CTkFont(size=13), height=36)
+        ctk.CTkLabel(
+            content, text=label, font=ctk.CTkFont(size=12),
+            text_color=DIM, anchor="w",
+        ).pack(fill="x")
+        entry = ctk.CTkEntry(
+            content, fg_color=SURFACE, border_color=SURFACE,
+            text_color=FG, placeholder_text=placeholder,
+            font=ctk.CTkFont(size=13), height=36,
+        )
         entry.pack(fill="x", pady=(2, 8))
         if value:
             entry.insert(0, value)
         return entry
 
-    def labeled_entry_with_browse(label: str, value: str = "",
-                                  placeholder: str = "",
-                                  browse_fn: Optional[Callable] = None) -> ctk.CTkEntry:
-        ctk.CTkLabel(content, text=label, font=ctk.CTkFont(size=12),
-                     text_color=DIM, anchor="w").pack(fill="x")
+    def labeled_entry_with_browse(
+        label: str, value: str = "",
+        placeholder: str = "",
+        browse_fn: Optional[Callable] = None,
+    ) -> ctk.CTkEntry:
+        ctk.CTkLabel(
+            content, text=label, font=ctk.CTkFont(size=12),
+            text_color=DIM, anchor="w",
+        ).pack(fill="x")
         row = ctk.CTkFrame(content, fg_color=BG)
         row.pack(fill="x", pady=(2, 8))
-        entry = ctk.CTkEntry(row, fg_color=SURFACE, border_color=SURFACE,
-                             text_color=FG, placeholder_text=placeholder,
-                             font=ctk.CTkFont(size=13), height=36)
+        entry = ctk.CTkEntry(
+            row, fg_color=SURFACE, border_color=SURFACE,
+            text_color=FG, placeholder_text=placeholder,
+            font=ctk.CTkFont(size=13), height=36,
+        )
         entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
         if value:
             entry.insert(0, value)
         if browse_fn:
-            ctk.CTkButton(row, text="Browse", command=browse_fn, width=80, height=36,
-                          fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
-                          font=ctk.CTkFont(size=12)).pack(side="left")
+            ctk.CTkButton(
+                row, text="Browse", command=browse_fn, width=80, height=36,
+                fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+                font=ctk.CTkFont(size=12),
+            ).pack(side="left")
         return entry
 
     def browse_folder() -> None:
@@ -383,42 +406,60 @@ def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statem
             output_entry.delete(0, "end")
             output_entry.insert(0, path)
 
-    folder_entry = labeled_entry_with_browse("Folder", value=initial_folder or "",
-                                             placeholder="Path to folder...",
-                                             browse_fn=browse_folder)
-    ext_entry = labeled_entry("Extensions", value=".py .js .ts",
-                              placeholder=".py .ts .md")
-    exclude_entry = labeled_entry("Exclude dirs (space-separated)",
-                                  placeholder="dist build tests .venv")
+    folder_entry = labeled_entry_with_browse(
+        "Folder", value=initial_folder or "",
+        placeholder="Path to folder...",
+        browse_fn=browse_folder,
+    )
+    ext_entry = labeled_entry(
+        "Extensions", value=".py .js .ts",
+        placeholder=".py .ts .md",
+    )
+    exclude_entry = labeled_entry(
+        "Exclude dirs (space-separated)",
+        placeholder="dist build tests .venv",
+    )
 
     size_row = ctk.CTkFrame(content, fg_color=BG)
     size_row.pack(fill="x", pady=(0, 8))
-    ctk.CTkLabel(size_row, text="Max file size (KB)", font=ctk.CTkFont(size=12),
-                 text_color=DIM).pack(side="left")
-    size_entry = ctk.CTkEntry(size_row, fg_color=SURFACE, border_color=SURFACE,
-                               text_color=FG, font=ctk.CTkFont(size=13), height=36, width=100)
+    ctk.CTkLabel(
+        size_row, text="Max file size (KB)", font=ctk.CTkFont(size=12),
+        text_color=DIM,
+    ).pack(side="left")
+    size_entry = ctk.CTkEntry(
+        size_row, fg_color=SURFACE, border_color=SURFACE,
+        text_color=FG, font=ctk.CTkFont(size=13), height=36, width=100,
+    )
     size_entry.pack(side="left", padx=8)
     size_entry.insert(0, str(DEFAULT_MAX_FILE_SIZE_KB))
 
-    output_entry = labeled_entry_with_browse("Save to file (optional)",
-                                             placeholder="Leave blank to only copy to clipboard",
-                                             browse_fn=browse_output)
+    output_entry = labeled_entry_with_browse(
+        "Save to file (optional)",
+        placeholder="Leave blank to only copy to clipboard",
+        browse_fn=browse_output,
+    )
 
     opts_row = ctk.CTkFrame(content, fg_color=BG)
     opts_row.pack(fill="x", pady=(0, 12))
-    clipboard_cb = ctk.CTkCheckBox(opts_row, text="Copy to clipboard",
-                                   text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
-                                   font=ctk.CTkFont(size=13))
+    clipboard_cb = ctk.CTkCheckBox(
+        opts_row, text="Copy to clipboard",
+        text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
+        font=ctk.CTkFont(size=13),
+    )
     clipboard_cb.select()
     clipboard_cb.pack(side="left", padx=(0, 20))
-    summary_cb = ctk.CTkCheckBox(opts_row, text="Include summary header",
-                                 text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
-                                 font=ctk.CTkFont(size=13))
+    summary_cb = ctk.CTkCheckBox(
+        opts_row, text="Include summary header",
+        text_color=FG, fg_color=ACCENT, hover_color=ACCENT,
+        font=ctk.CTkFont(size=13),
+    )
     summary_cb.select()
     summary_cb.pack(side="left")
 
-    status_label = ctk.CTkLabel(content, text="", font=ctk.CTkFont(size=12),
-                                 text_color=DIM, anchor="w")
+    status_label = ctk.CTkLabel(
+        content, text="", font=ctk.CTkFont(size=12),
+        text_color=DIM, anchor="w",
+    )
     status_label.pack(fill="x", pady=(0, 8))
 
     btn_row = ctk.CTkFrame(content, fg_color=BG)
@@ -473,12 +514,16 @@ def show_concatenator_dialog(  # pylint: disable=too-many-locals,too-many-statem
     def on_cancel() -> None:
         win.destroy()
 
-    ctk.CTkButton(btn_row, text="Cancel", command=on_cancel, width=110, height=44,
-                  fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
-                  font=ctk.CTkFont(size=13)).pack(side="right")
-    run_btn = ctk.CTkButton(btn_row, text="Run", command=on_run, width=110, height=44,
-                            fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
-                            font=ctk.CTkFont(size=13, weight="bold"))
+    ctk.CTkButton(
+        btn_row, text="Cancel", command=on_cancel, width=110, height=44,
+        fg_color=SURFACE, text_color=FG, hover_color="#3a3a5c",
+        font=ctk.CTkFont(size=13),
+    ).pack(side="right")
+    run_btn = ctk.CTkButton(
+        btn_row, text="Run", command=on_run, width=110, height=44,
+        fg_color=ACCENT, text_color=BG, hover_color="#a8c8ff",
+        font=ctk.CTkFont(size=13, weight="bold"),
+    )
     run_btn.pack(side="right", padx=(0, 8))
 
     win.bind("<Return>", lambda _e: on_run())

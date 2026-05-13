@@ -14,8 +14,10 @@ ERROR = "#f38ba8"
 SUCCESS = "#a6e3a1"
 
 
-def setup_window(win: ctk.CTk | ctk.CTkToplevel, title: str,
-                 width: int, height: int) -> None:
+def setup_window(
+    win: ctk.CTk | ctk.CTkToplevel, title: str,
+    width: int, height: int,
+) -> None:
     win.title(title)
     win.geometry(f"{width}x{height}")
     win.resizable(False, False)

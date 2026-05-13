@@ -1,51 +1,44 @@
 from pathlib import Path
 import re
 import tempfile
-from typing import (
-    Optional,
-    Tuple,
-)
+from typing import Optional
 
-import numpy as np
 from scipy.io import wavfile
 import yt_dlp
 
-from src import log
+from src.core.dtos import AudioData
 from src.audio_utils import normalize_audio
+from src import log
 
 
-class YouTubeDownloader:
-    def __init__(self):
-        self.temp_dir = Path(tempfile.gettempdir())
+class YtDlpDownloader:
+    def __init__(self) -> None:
+        self._temp_dir = Path(tempfile.gettempdir())
 
     @staticmethod
-    def is_youtube_url(url: str) -> bool:
-        youtube_patterns = [
+    def is_valid_url(url: str) -> bool:
+        patterns = [
             r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/',
             r'(https?://)?(www\.)?youtu\.be/',
         ]
-        return any(re.match(pattern, url) for pattern in youtube_patterns)
+        return any(re.match(p, url) for p in patterns)
 
-    def download_audio(self, url: str) -> Optional[Tuple[np.ndarray, str]]:
-        if not self.is_youtube_url(url):
+    def download_audio(self, url: str) -> Optional[AudioData]:
+        if not self.is_valid_url(url):
             log.warn(f"Not a YouTube URL: [dim]{url}[/dim]")
             return None
 
-        temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
-
+        temp_path = self._temp_dir / 'voicepaste_yt_audio.wav'
         try:
-            if temp_audio_path.exists():
-                temp_audio_path.unlink()
+            if temp_path.exists():
+                temp_path.unlink()
         except Exception:  # pylint: disable=broad-exception-caught
             pass
 
         ydl_opts = {
             'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-            }],
-            'outtmpl': str(temp_audio_path.with_suffix('')),
+            'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'wav'}],
+            'outtmpl': str(temp_path.with_suffix('')),
             'quiet': True,
             'no_warnings': True,
         }
@@ -58,35 +51,35 @@ class YouTubeDownloader:
                 title = info.get('title', 'Unknown')
                 log.info(f"Downloaded: [italic]{title}[/italic]")
 
-            if not temp_audio_path.exists():
-                log.error(f"Audio file not found: {temp_audio_path}")
+            if not temp_path.exists():
+                log.error(f"Audio file not found: {temp_path}")
                 return None
 
             log.audio_info("Converting to 16 kHz mono...")
-            sample_rate, audio = wavfile.read(str(temp_audio_path))
+            sample_rate, audio = wavfile.read(str(temp_path))
             audio, sample_rate = normalize_audio(audio, sample_rate, 16000)
 
             try:
-                temp_audio_path.unlink()
+                temp_path.unlink()
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
             log.audio_info(f"Ready: {len(audio)/sample_rate:.1f}s @ {sample_rate} Hz")
-            return audio, title
+            return AudioData(data=audio, sample_rate=sample_rate, source_name=title)
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"YouTube download error: {e}")
             try:
-                if temp_audio_path.exists():
-                    temp_audio_path.unlink()
+                if temp_path.exists():
+                    temp_path.unlink()
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
             return None
 
-    def cleanup(self):
-        temp_audio_path = self.temp_dir / 'voicepaste_yt_audio.wav'
+    def cleanup(self) -> None:
+        temp_path = self._temp_dir / 'voicepaste_yt_audio.wav'
         try:
-            if temp_audio_path.exists():
-                temp_audio_path.unlink()
+            if temp_path.exists():
+                temp_path.unlink()
         except Exception:  # pylint: disable=broad-exception-caught
             pass

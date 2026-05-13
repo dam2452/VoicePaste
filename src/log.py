@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sys
 from datetime import datetime
+import sys
 
 from rich.console import Console
 from rich.panel import Panel
@@ -52,6 +52,10 @@ def clip(msg: str) -> None:
     _line("CLIP", "green", f"[bold green]{msg}[/bold green]")
 
 
+def tts(msg: str) -> None:
+    _line("TTS", "magenta", f"[magenta]{msg}[/magenta]")
+
+
 def xscr(text: str, chars: int | None = None) -> None:
     preview = text[:120].replace("\n", " ")
     suffix = "..." if len(text) > 120 else ""
@@ -82,6 +86,8 @@ def startup_banner() -> None:
         ("Shift+Y", "Transcribe YouTube URL from clipboard"),
         ("Shift+F", "Transcribe audio/video file from clipboard"),
         ("Shift+K", "Concatenate files"),
+        ("Shift+L", "Read clipboard aloud / Stop"),
+        ("Shift+S", "Summarize clipboard"),
         ("Ctrl+C", "Quit"),
     ]
     for key, desc in bindings:

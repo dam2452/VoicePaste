@@ -1,6 +1,7 @@
 customtkinter>=5.2.0
+edge-tts>=6.1.0
 faster-whisper>=1.0.0
-rich>=13.0.0
+google-genai>=0.8.0
 numpy>=1.24.0
 Pillow>=10.0.0
 PyAudio>=0.2.13
@@ -10,7 +11,10 @@ pyperclip>=1.8.2
 pystray>=0.19.5
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
+python-dotenv>=1.0.0
 pywin32>=306; sys_platform == 'win32'
+requests>=2.31.0
+rich>=13.0.0
 scipy>=1.11.0
 torch>=2.5.0
 torchaudio>=2.5.0

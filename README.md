@@ -1,25 +1,27 @@
 # 🎤 VoicePaste
 <img width="386" height="385" alt="logo" src="https://github.com/user-attachments/assets/ea7bd00f-d363-4f51-9146-c9e5712f0860" />
 
-Voice-to-text application with real-time transcription and automatic clipboard integration.
+Voice-to-text application with real-time transcription, TTS playback, and automatic clipboard integration.
 
-**Press Shift+V, speak, press Shift+V again - your text is ready to paste.** ✨
+**Press Shift+V, speak, press Shift+V again - your text is ready to paste.**
 
 ## ✨ Features
 
-- 🎯 **Voice recording** - Simple Shift+V hotkey to start/stop recording
-- 📺 **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
-- 📁 **Local file transcription** - Press Shift+F to transcribe audio/video files from clipboard
-- 📚 **Batch processing** - Select and transcribe multiple files at once, each cached separately
-- 📄 **File Concatenator** - Press Shift+K to concatenate source files for LLM context
-- ⚡ **Real-time transcription** - Using OpenAI Whisper Turbo model
-- 🚀 **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
-- 📋 **Automatic clipboard** - Transcribed text instantly available for pasting
-- 💾 **Persistent caching** - All transcriptions cached 24h, survives restarts (avoid re-processing)
-- 🔔 **System tray integration** - Runs quietly in background with functional menu
-- 🧠 **Smart memory management** - Auto-loads/unloads model to save GPU memory
-- 🎧 **Virtual audio support** - Works with NVIDIA Broadcast, VB-Cable, Krisp, etc.
-- 🌍 **Cross-platform** - Windows, Linux, macOS
+- **Voice recording** - Simple Shift+V hotkey to start/stop recording
+- **YouTube transcription** - Press Shift+Y to transcribe YouTube videos from clipboard
+- **Local file transcription** - Press Shift+F to transcribe audio/video files from clipboard
+- **Read aloud (TTS)** - Press Shift+L to listen to clipboard content, press again to stop
+- **Summarize** - Press Shift+S to summarize clipboard content via LLM
+- **Batch processing** - Select and transcribe multiple files at once, each cached separately
+- **File Concatenator** - Press Shift+K to concatenate source files for LLM context
+- **Real-time transcription** - Using OpenAI Whisper Turbo model
+- **GPU acceleration** - CUDA support for fast transcription (CPU fallback available)
+- **Automatic clipboard** - Transcribed text instantly available for pasting
+- **Persistent caching** - All transcriptions cached 24h, survives restarts (avoid re-processing)
+- **System tray integration** - Runs quietly in background with functional menu
+- **Smart memory management** - Auto-loads/unloads model to save GPU memory
+- **Virtual audio support** - Works with NVIDIA Broadcast, VB-Cable, Krisp, etc.
+- **Cross-platform** - Windows, Linux, macOS
 
 ## 🚀 Quick Start
 
@@ -99,7 +101,9 @@ python main.py
 - Press `Shift+V` → speak → press `Shift+V` → text in clipboard ✅
 - Copy YouTube URL → press `Shift+Y` → video transcribed → text in clipboard ✅
 - Copy file or file path → press `Shift+F` → file transcribed → text in clipboard ✅
-- Copy folder path → `Shift+K` → copy file path → `Shift+K` → files concatenated → text in clipboard ✅
+- Copy folder path → `Shift+K` → copy file path → `Shift+K` → files concatenated → text in clipboard
+- Copy any text → press `Shift+S` → summary in clipboard
+- Copy any text → press `Shift+L` → listen to it, press `Shift+L` again to stop
 
 ## 🎯 Usage
 
@@ -231,7 +235,60 @@ python src/file_concatenator.py --gui
 <file content>
 ```
 
-**Icon colors:** 🟢 ready → 🔴 recording → 🟣 downloading → 🔵 processing → 🟢 ready
+**Icon colors:** green ready -> red recording -> purple downloading -> blue processing -> orange speaking -> green ready
+
+### Read Aloud (TTS)
+
+Listen to clipboard content through text-to-speech.
+
+1. Copy any text to clipboard
+2. Press `Shift+L` - TTS starts (icon turns orange)
+3. Press `Shift+L` again to stop playback
+
+**Configuration** (`.env` file):
+```
+TTS_BACKEND=openai
+TTS_API_URL=http://localhost:5959/v1
+TTS_MODEL=omnivoice
+TTS_VOICE=auto
+```
+
+Supports any OpenAI-compatible TTS API (OmniVoice, OpenAI, etc.). Optional `edge-tts` backend available for free offline TTS.
+
+**Pre-summarize for TTS:** Set `TTS_PRE_SUMMARIZE=true` in `.env` to have the LLM summarize text before speaking - shorter, cleaner output for listening.
+
+### Summarize
+
+Summarize clipboard content via LLM and put result back in clipboard.
+
+1. Copy any text to clipboard
+2. Press `Shift+S` - summarization starts (icon turns blue)
+3. Summary is copied to clipboard - paste with `Ctrl+V`
+
+**Configuration** (`.env` file):
+```
+SUMM_API_URL=http://localhost:1234/v1
+SUMM_MODEL=google/gemma-4-26b-a4b
+```
+
+Works with any OpenAI-compatible API: LM Studio, Ollama, vLLM, cloud APIs.
+
+**Custom prompts:** Edit `prompts/summarize.txt` for the main summarization prompt. Edit `prompts/summarize_tts.txt` for additional TTS-specific instructions (appended to main prompt when TTS pre-summarize is enabled).
+
+### Configuration (.env)
+
+Copy `.env.example` to `.env` and customize:
+
+| Variable | Default | Description |
+|---|---|---|
+| `TTS_BACKEND` | `openai` | TTS backend: `openai` (API) or `edge_tts` (free local) |
+| `TTS_API_URL` | `http://localhost:5959/v1` | TTS API endpoint |
+| `TTS_MODEL` | `omnivoice` | TTS model name |
+| `TTS_VOICE` | `auto` | Voice name or profile |
+| `TTS_PRE_SUMMARIZE` | `false` | Summarize before speaking |
+| `SUMM_API_URL` | `http://localhost:1234/v1` | Summarization API endpoint |
+| `SUMM_MODEL` | `google/gemma-4-26b-a4b` | Summarization model |
+| `SUMM_API_KEY` | (empty) | API key (if required) |
 
 ## 🎛️ Advanced Features
 
