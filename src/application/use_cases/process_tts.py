@@ -1,5 +1,6 @@
 from typing import Optional
 
+from src.application.services.tts_audio_cache import TTSAudioCache
 from src.core.interfaces import IAppNotifier, IClipboard, ISummarizer, ITTSEngine
 from src import log
 
@@ -13,6 +14,7 @@ class ProcessTTSUseCase:
         summarizer: ISummarizer,
         tts_system_prompt: str = "",
         pre_summarize: bool = False,
+        audio_cache: Optional[TTSAudioCache] = None,
     ) -> None:
         self._clipboard = clipboard
         self._tts = tts
@@ -20,6 +22,7 @@ class ProcessTTSUseCase:
         self._summarizer = summarizer
         self._tts_system_prompt = tts_system_prompt
         self._pre_summarize = pre_summarize
+        self._audio_cache = audio_cache
 
     def toggle(self) -> None:
         if self._tts.is_speaking:
@@ -34,11 +37,25 @@ class ProcessTTSUseCase:
                 return
             log.tts(f"Speaking {len(text)} chars...")
             self._notifier.update_status("speaking")
-            self._tts.speak(text)
+            self._play(text)
             self._notifier.update_status("idle")
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"TTS error: {e}")
             self._notifier.update_status("idle")
+
+    def _play(self, text: str) -> None:
+        if self._audio_cache is None:
+            self._tts.speak(text)
+            return
+
+        cached = self._audio_cache.get(text)
+        if cached is not None:
+            self._tts.play_file(str(cached))
+            return
+
+        audio_bytes, ext = self._tts.generate(text)
+        cached_path = self._audio_cache.put(text, audio_bytes, ext)
+        self._tts.play_file(str(cached_path))
 
     def _prepare_text(self) -> Optional[str]:
         text = self._clipboard.read_text()

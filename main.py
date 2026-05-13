@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 from src import log
 from src.application.services.cache_manager import TranscriptionCacheManager
+from src.application.services.tts_audio_cache import TTSAudioCache
 from src.application.use_cases.concatenate_files import ConcatenateFilesUseCase
 from src.application.use_cases.process_tts import ProcessTTSUseCase
 from src.application.use_cases.record_voice import RecordVoiceUseCase
@@ -34,6 +35,7 @@ from src.infrastructure.ai.summarizer import (
 from src.infrastructure.ai.tts_engine import (
     EdgeTTSBackend,
     GeminiTTSBackend,
+    OmniVoiceBackend,
     OpenAICompatibleBackend,
     TTSEngine,
 )
@@ -55,7 +57,7 @@ from src.infrastructure.ui.tray_icon import TrayIcon
 
 
 def _build_tts_backend():
-    backend = env_get("TTS_BACKEND", "openai")
+    backend = env_get("TTS_BACKEND", "omnivoice")
     if backend == "gemini":
         api_key = env_get("GEMINI_API_KEY", "")
         if not api_key:
@@ -67,11 +69,19 @@ def _build_tts_backend():
         )
     if backend == "edge_tts":
         return EdgeTTSBackend(voice=env_get("TTS_VOICE", "en-US-AriaNeural"))
-    return OpenAICompatibleBackend(
-        api_url=env_get("TTS_API_URL", "http://localhost:5959/v1"),
-        api_key=env_get("TTS_API_KEY", ""),
-        model=env_get("TTS_MODEL", "omnivoice"),
-        voice=env_get("TTS_VOICE", "auto"),
+    if backend == "openai":
+        return OpenAICompatibleBackend(
+            api_url=env_get("TTS_API_URL", "http://localhost:5959/v1"),
+            api_key=env_get("TTS_API_KEY", ""),
+            model=env_get("TTS_MODEL", "omnivoice"),
+            voice=env_get("TTS_VOICE", "auto"),
+        )
+    speed_raw = env_get("TTS_SPEED", "")
+    return OmniVoiceBackend(
+        api_url=env_get("TTS_API_URL", "http://localhost:5959"),
+        voice=env_get("TTS_VOICE", "a969b458"),
+        num_step=int(env_get("TTS_NUM_STEP", "32")),
+        speed=float(speed_raw) if speed_raw else None,
     )
 
 
@@ -155,6 +165,7 @@ def main() -> None:
 
     tts_engine = TTSEngine()
     tts_engine.set_backend(_build_tts_backend())
+    tts_audio_cache = TTSAudioCache()
 
     summarizer = Summarizer()
     summarizer.set_backend(_build_summarizer_backend())
@@ -175,6 +186,7 @@ def main() -> None:
     def on_quit() -> None:
         log.info("Shutting down...")
         cache.shutdown()
+        tts_audio_cache.shutdown()
         hotkeys.stop()
         tts_engine.shutdown()
         transcriber.shutdown()
@@ -222,7 +234,7 @@ def main() -> None:
     tts_uc = ProcessTTSUseCase(
         clipboard=clipboard, tts=tts_engine, notifier=tray,
         summarizer=summarizer, tts_system_prompt=tts_summarize_prompt,
-        pre_summarize=pre_summarize,
+        pre_summarize=pre_summarize, audio_cache=tts_audio_cache,
     )
     summarize_uc = SummarizeClipboardUseCase(
         clipboard=clipboard, summarizer=summarizer, notifier=tray,

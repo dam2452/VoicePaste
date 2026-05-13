@@ -5,7 +5,7 @@ import threading
 import wave
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import pyaudio
 import requests
@@ -66,6 +66,43 @@ class OpenAICompatibleBackend(TTSBackend):
             raise RuntimeError(
                 f"Cannot connect to TTS server at {self._api_url}. "
                 "Make sure the service is running."
+            ) from exc
+        response.raise_for_status()
+        return response.content
+
+    def audio_format(self) -> str:
+        return ".wav"
+
+
+class OmniVoiceBackend(TTSBackend):
+    def __init__(
+        self,
+        api_url: str = "http://localhost:5959",
+        voice: str = "auto",
+        num_step: int = 32,
+        speed: Optional[float] = None,
+    ):
+        self._api_url = api_url.rstrip("/")
+        self._voice = voice
+        self._num_step = num_step
+        self._speed = speed
+
+    def generate_audio(self, text: str) -> bytes:
+        if self._voice and self._voice != "auto":
+            url = f"{self._api_url}/v1/tts/clone/{self._voice}"
+        else:
+            url = f"{self._api_url}/v1/tts/auto"
+
+        payload: dict = {"text": text, "num_step": self._num_step}
+        if self._speed is not None:
+            payload["speed"] = self._speed
+
+        try:
+            response = requests.post(url, json=payload, timeout=120)
+        except RequestsConnectionError as exc:
+            raise RuntimeError(
+                f"Cannot connect to OmniVoice at {self._api_url}. "
+                "Make sure OmniVoice is running."
             ) from exc
         response.raise_for_status()
         return response.content
@@ -138,6 +175,11 @@ class TTSEngine:
     def is_speaking(self) -> bool:
         return self._is_speaking
 
+    def generate(self, text: str) -> Tuple[bytes, str]:
+        if self._backend is None:
+            raise RuntimeError("No TTS backend configured. Call set_backend() first.")
+        return self._backend.generate_audio(text), self._backend.audio_format()
+
     def speak(self, text: str) -> None:
         with self._lock:
             if self._is_speaking:
@@ -149,6 +191,18 @@ class TTSEngine:
         self._stop_event.clear()
         self._playback_thread = threading.Thread(
             target=self._speak_worker, args=(text,), daemon=True
+        )
+        self._playback_thread.start()
+        self._playback_thread.join()
+
+    def play_file(self, path: str) -> None:
+        with self._lock:
+            if self._is_speaking:
+                return
+
+        self._stop_event.clear()
+        self._playback_thread = threading.Thread(
+            target=self._play_file_worker, args=(path,), daemon=True
         )
         self._playback_thread.start()
         self._playback_thread.join()
@@ -176,15 +230,28 @@ class TTSEngine:
             ext = self._backend.audio_format()  # type: ignore[union-attr]
 
             if self._stop_event.is_set():
+                with self._lock:
+                    self._is_speaking = False
                 return
 
             with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
                 tmp.write(audio_bytes)
                 tmp_path = tmp.name
 
-            self._play_file(tmp_path)
+            self._play_file(tmp_path, delete_after=True)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             log.error(f"TTS error: {exc}")
+            with self._lock:
+                self._is_speaking = False
+
+    def _play_file_worker(self, path: str) -> None:
+        with self._lock:
+            self._is_speaking = True
+
+        try:
+            self._play_file(path, delete_after=False)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            log.error(f"TTS playback error: {exc}")
             with self._lock:
                 self._is_speaking = False
 
@@ -202,7 +269,7 @@ class TTSEngine:
                 pass
             self._stream = None
 
-    def _play_file(self, path: str) -> None:
+    def _play_file(self, path: str, delete_after: bool = False) -> None:
         p = self._get_pyaudio()
         try:
             self._stream_wav(p, path)
@@ -210,10 +277,11 @@ class TTSEngine:
             self._close_stream()
             with self._lock:
                 self._is_speaking = False
-            try:
-                Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
+            if delete_after:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def _stream_wav(self, p: pyaudio.PyAudio, path: str) -> None:
         with wave.open(path, "rb") as wf:
