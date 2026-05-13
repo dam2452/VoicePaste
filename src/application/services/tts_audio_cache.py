@@ -10,7 +10,7 @@ from src import log
 
 class TTSAudioCache:
     _TTL = 604800  # 7 days
-    _CACHE_DIR = Path.home() / '.voicepaste_tts_cache'
+    _CACHE_DIR = Path.home() / '.aitoys_tts_cache'
     _INDEX_FILE = _CACHE_DIR / 'index.json'
 
     def __init__(self) -> None:

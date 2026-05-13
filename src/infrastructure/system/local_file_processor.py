@@ -31,7 +31,7 @@ class LocalFileProcessor:
             return None
 
         file_path = Path(cleaned)
-        temp_wav = self._temp_dir / 'voicepaste_local_audio.wav'
+        temp_wav = self._temp_dir / 'aitoys_local_audio.wav'
         ext = file_path.suffix.lower()
         filename = file_path.name
 
@@ -87,7 +87,7 @@ class LocalFileProcessor:
             return None
 
     def cleanup(self) -> None:
-        temp_wav = self._temp_dir / 'voicepaste_local_audio.wav'
+        temp_wav = self._temp_dir / 'aitoys_local_audio.wav'
         try:
             if temp_wav.exists():
                 temp_wav.unlink()

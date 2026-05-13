@@ -10,7 +10,7 @@ from src import log
 
 class TranscriptionCacheManager:
     _TTL = 86400
-    _CACHE_FILE = Path.home() / '.voicepaste_cache.json'
+    _CACHE_FILE = Path.home() / '.aitoys_cache.json'
 
     def __init__(self) -> None:
         self._cache: Dict[str, CacheEntry] = {}

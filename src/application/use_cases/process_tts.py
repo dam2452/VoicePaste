@@ -1,3 +1,4 @@
+import threading
 from typing import Optional
 
 from src.application.services.tts_audio_cache import TTSAudioCache
@@ -23,17 +24,27 @@ class ProcessTTSUseCase:
         self._tts_system_prompt = tts_system_prompt
         self._pre_summarize = pre_summarize
         self._audio_cache = audio_cache
+        self._active_lock = threading.Lock()
+        self._is_active = False
+        self._stop_event = threading.Event()
 
     def toggle(self) -> None:
-        if self._tts.is_speaking:
+        if self._tts.is_speaking or self._is_active:
+            self._stop_event.set()
             self._tts.stop()
             log.tts("Stopped")
             self._notifier.update_status("idle")
             return
 
+        with self._active_lock:
+            if self._is_active:
+                return
+            self._is_active = True
+            self._stop_event.clear()
+
         try:
             text = self._prepare_text()
-            if text is None:
+            if text is None or self._stop_event.is_set():
                 return
             log.tts(f"Speaking {len(text)} chars...")
             self._notifier.update_status("speaking")
@@ -42,6 +53,9 @@ class ProcessTTSUseCase:
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"TTS error: {e}")
             self._notifier.update_status("idle")
+        finally:
+            with self._active_lock:
+                self._is_active = False
 
     def _play(self, text: str) -> None:
         if self._audio_cache is None:
@@ -50,10 +64,17 @@ class ProcessTTSUseCase:
 
         cached = self._audio_cache.get(text)
         if cached is not None:
+            log.tts("Playing from cache")
             self._tts.play_file(str(cached))
             return
 
+        log.tts("Generating audio...")
         audio_bytes, ext = self._tts.generate(text)
+
+        if self._stop_event.is_set():
+            log.tts("Generation cancelled")
+            return
+
         cached_path = self._audio_cache.put(text, audio_bytes, ext)
         self._tts.play_file(str(cached_path))
 

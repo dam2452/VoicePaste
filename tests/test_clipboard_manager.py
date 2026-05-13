@@ -21,7 +21,7 @@ def test_get_from_clipboard():
 
 
 def test_get_file_path_from_clipboard_with_text_path():
-    temp_file = Path(tempfile.gettempdir()) / "test_voicepaste_clip.txt"
+    temp_file = Path(tempfile.gettempdir()) / "test_aitoys_clip.txt"
     temp_file.write_text("test")
 
     try:

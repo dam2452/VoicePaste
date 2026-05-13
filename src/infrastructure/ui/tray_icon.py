@@ -22,6 +22,7 @@ class TrayIcon:
         on_show_history: Callable = None,
         on_file_concatenator: Callable = None,
         on_tts: Callable = None,
+        on_tts_summarize: Callable = None,
         on_summarize: Callable = None,
     ):
         self.on_quit = on_quit
@@ -35,6 +36,7 @@ class TrayIcon:
         self.on_show_history = on_show_history
         self.on_file_concatenator = on_file_concatenator
         self.on_tts = on_tts
+        self.on_tts_summarize = on_tts_summarize
         self.on_summarize = on_summarize
         self.icon = None
         self.status = "idle"
@@ -218,7 +220,7 @@ class TrayIcon:
     def start(self):
         def create_menu():
             return pystray.Menu(
-                pystray.MenuItem("VoicePaste - Voice to Text", lambda: None, enabled=False),
+                pystray.MenuItem("AIToys - Voice to Text", lambda: None, enabled=False),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(self._get_status_text, lambda: None, enabled=False),
                 pystray.MenuItem(self._get_model_location, lambda: None, enabled=False),
@@ -247,6 +249,11 @@ class TrayIcon:
                     "Read Aloud (Shift+L)",
                     self._tts_action,
                     enabled=bool(self.on_tts),
+                ),
+                pystray.MenuItem(
+                    "Summarize & Read (Shift+R)",
+                    self._tts_summarize_action,
+                    enabled=bool(self.on_tts_summarize),
                 ),
                 pystray.MenuItem(
                     "Summarize (Shift+S)",
@@ -289,9 +296,9 @@ class TrayIcon:
             )
 
         self.icon = pystray.Icon(
-            "VoicePaste",
+            "AIToys",
             self.create_icon_image("idle"),
-            "VoicePaste - Ready",
+            "AIToys - Ready",
             menu=create_menu(),
         )
         self.thread = threading.Thread(target=self.icon.run, daemon=True)
@@ -302,19 +309,19 @@ class TrayIcon:
         if self.icon:
             if status == "recording":
                 self.icon.icon = self.create_icon_image("recording")
-                self.icon.title = "VoicePaste - Recording"
+                self.icon.title = "AIToys - Recording"
             elif status == "downloading":
                 self.icon.icon = self.create_icon_image("downloading")
-                self.icon.title = "VoicePaste - Downloading"
+                self.icon.title = "AIToys - Downloading"
             elif status == "processing":
                 self.icon.icon = self.create_icon_image("processing")
-                self.icon.title = "VoicePaste - Processing"
+                self.icon.title = "AIToys - Processing"
             elif status == "speaking":
                 self.icon.icon = self.create_icon_image("speaking")
-                self.icon.title = "VoicePaste - Speaking..."
+                self.icon.title = "AIToys - Speaking..."
             else:
                 self.icon.icon = self.create_icon_image("idle")
-                self.icon.title = "VoicePaste - Ready"
+                self.icon.title = "AIToys - Ready"
 
     def _get_status_text(self, _=None):
         status_map = {
@@ -366,6 +373,10 @@ class TrayIcon:
     def _tts_action(self, _=None):
         if self.on_tts:
             self.on_tts()
+
+    def _tts_summarize_action(self, _=None):
+        if self.on_tts_summarize:
+            self.on_tts_summarize()
 
     def _summarize_action(self, _=None):
         if self.on_summarize:

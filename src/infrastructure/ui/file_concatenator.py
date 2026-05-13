@@ -335,7 +335,7 @@ def show_concatenator_dialog(
     )
 
     win = ctk.CTk()
-    setup_window(win, "VoicePaste - File Concatenator", 620, 590)
+    setup_window(win, "AIToys - File Concatenator", 620, 590)
 
     content = ctk.CTkFrame(win, fg_color=BG)
     content.pack(fill="both", expand=True, padx=24, pady=20)

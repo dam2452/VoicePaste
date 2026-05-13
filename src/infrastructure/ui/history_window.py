@@ -60,7 +60,7 @@ class HistoryWindow:
         self._is_open = True
         win = ctk.CTk()
         self._window = win
-        setup_window(win, "VoicePaste - Transcription History", 1100, 680)
+        setup_window(win, "AIToys - Transcription History", 1100, 680)
         win.resizable(True, True)
         win.protocol("WM_DELETE_WINDOW", self._on_close)
 

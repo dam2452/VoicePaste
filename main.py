@@ -139,7 +139,7 @@ def list_devices() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="VoicePaste - Voice to text with clipboard")
+    parser = argparse.ArgumentParser(description="AIToys - Voice to text with clipboard")
     parser.add_argument("--keep-model-loaded", action="store_true")
     parser.add_argument("--device", type=int)
     parser.add_argument("--list-devices", action="store_true")
@@ -214,6 +214,7 @@ def main() -> None:
         on_show_history=lambda: history_window.show(),  # pylint: disable=unnecessary-lambda
         on_file_concatenator=lambda: threading.Thread(target=show_concatenator_dialog, daemon=True).start(),
         on_tts=lambda: threading.Thread(target=tts_uc.toggle, daemon=True).start(),
+        on_tts_summarize=lambda: threading.Thread(target=tts_summarize_uc.toggle, daemon=True).start(),
         on_summarize=lambda: threading.Thread(target=summarize_uc.execute, daemon=True).start(),
     )
 
@@ -236,6 +237,11 @@ def main() -> None:
         summarizer=summarizer, tts_system_prompt=tts_summarize_prompt,
         pre_summarize=pre_summarize, audio_cache=tts_audio_cache,
     )
+    tts_summarize_uc = ProcessTTSUseCase(
+        clipboard=clipboard, tts=tts_engine, notifier=tray,
+        summarizer=summarizer, tts_system_prompt=tts_summarize_prompt,
+        pre_summarize=True, audio_cache=tts_audio_cache,
+    )
     summarize_uc = SummarizeClipboardUseCase(
         clipboard=clipboard, summarizer=summarizer, notifier=tray,
     )
@@ -257,6 +263,7 @@ def main() -> None:
     hotkeys.bind_shift('f', lambda: threading.Thread(target=file_uc.execute, daemon=True).start())
     hotkeys.bind_shift('k', lambda: threading.Thread(target=concat_uc.execute, daemon=True).start())
     hotkeys.bind_shift('l', lambda: threading.Thread(target=tts_uc.toggle, daemon=True).start())
+    hotkeys.bind_shift('r', lambda: threading.Thread(target=tts_summarize_uc.toggle, daemon=True).start())
     hotkeys.bind_shift('s', lambda: threading.Thread(target=summarize_uc.execute, daemon=True).start())
 
     log.startup_banner()

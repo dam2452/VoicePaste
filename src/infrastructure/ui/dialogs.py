@@ -29,7 +29,7 @@ def _run_youtube_dialog(
     initial_clipboard: str,
 ) -> None:
     win = ctk.CTk()
-    setup_window(win, "VoicePaste - Transcribe YouTube", 540, 240)
+    setup_window(win, "AIToys - Transcribe YouTube", 540, 240)
 
     content = ctk.CTkFrame(win, fg_color=BG)
     content.pack(fill="both", expand=True, padx=24, pady=20)
@@ -113,7 +113,7 @@ def show_file_dialog(on_paths: Callable[[str], None]) -> None:
                 ("All files", "*.*"),
             ]
             paths = filedialog.askopenfilenames(
-                title="Select Audio or Video File(s) - VoicePaste",
+                title="Select Audio or Video File(s) - AIToys",
                 filetypes=filetypes,
             )
             root.destroy()

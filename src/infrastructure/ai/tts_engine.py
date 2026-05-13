@@ -184,9 +184,9 @@ class TTSEngine:
         with self._lock:
             if self._is_speaking:
                 return
-
-        if self._backend is None:
-            raise RuntimeError("No TTS backend configured. Call set_backend() first.")
+            if self._backend is None:
+                raise RuntimeError("No TTS backend configured. Call set_backend() first.")
+            self._is_speaking = True
 
         self._stop_event.clear()
         self._playback_thread = threading.Thread(
@@ -199,6 +199,7 @@ class TTSEngine:
         with self._lock:
             if self._is_speaking:
                 return
+            self._is_speaking = True
 
         self._stop_event.clear()
         self._playback_thread = threading.Thread(
@@ -211,19 +212,19 @@ class TTSEngine:
         if not self._is_speaking:
             return
         self._stop_event.set()
-        self._close_stream()
         with self._lock:
             self._is_speaking = False
 
     def shutdown(self) -> None:
-        self.stop()
+        self._stop_event.set()
+        if self._playback_thread and self._playback_thread.is_alive():
+            self._playback_thread.join(timeout=3.0)
+        self._close_stream()
         if self._pyaudio:
             self._pyaudio.terminate()
             self._pyaudio = None
 
     def _speak_worker(self, text: str) -> None:
-        with self._lock:
-            self._is_speaking = True
 
         try:
             audio_bytes = self._backend.generate_audio(text)  # type: ignore[union-attr]
@@ -245,9 +246,6 @@ class TTSEngine:
                 self._is_speaking = False
 
     def _play_file_worker(self, path: str) -> None:
-        with self._lock:
-            self._is_speaking = True
-
         try:
             self._play_file(path, delete_after=False)
         except Exception as exc:  # pylint: disable=broad-exception-caught

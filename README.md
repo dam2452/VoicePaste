@@ -1,4 +1,4 @@
-# 🎤 VoicePaste
+# 🎤 AIToys
 <img width="386" height="385" alt="logo" src="https://github.com/user-attachments/assets/ea7bd00f-d363-4f51-9146-c9e5712f0860" />
 
 Voice-to-text application with real-time transcription, TTS playback, and automatic clipboard integration.
@@ -37,8 +37,8 @@ python --version
 winget install ffmpeg
 
 # Setup project
-git clone https://github.com/yourusername/VoicePaste.git
-cd VoicePaste
+git clone https://github.com/yourusername/AIToys.git
+cd AIToys
 python -m venv .venv
 .venv\Scripts\activate
 
@@ -60,8 +60,8 @@ python3.12 --version
 sudo apt update && sudo apt install ffmpeg portaudio19-dev python3-tk
 
 # Setup project
-git clone https://github.com/yourusername/VoicePaste.git
-cd VoicePaste
+git clone https://github.com/yourusername/AIToys.git
+cd AIToys
 python3.12 -m venv .venv
 source .venv/bin/activate
 
@@ -83,8 +83,8 @@ python3.12 --version
 brew install ffmpeg portaudio
 
 # Setup project
-git clone https://github.com/yourusername/VoicePaste.git
-cd VoicePaste
+git clone https://github.com/yourusername/AIToys.git
+cd AIToys
 python3.12 -m venv .venv
 source .venv/bin/activate
 
@@ -295,7 +295,7 @@ Copy `.env.example` to `.env` and customize:
 ### 💾 Persistent Caching (24h)
 
 All transcriptions are automatically cached for 24 hours:
-- 📝 **Survives restarts** - Cache stored in `~/.voicepaste_cache.json`
+- 📝 **Survives restarts** - Cache stored in `~/.aitoys_cache.json`
 - ⚡ **Instant results** - Re-using cached transcription takes <1ms
 - 🔄 **Auto-cleanup** - Expired entries removed automatically
 - 📊 **All types** - YouTube, single files, batch files all cached equally

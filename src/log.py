@@ -87,6 +87,7 @@ def startup_banner() -> None:
         ("Shift+F", "Transcribe audio/video file from clipboard"),
         ("Shift+K", "Concatenate files"),
         ("Shift+L", "Read clipboard aloud / Stop"),
+        ("Shift+R", "Summarize & read aloud / Stop"),
         ("Shift+S", "Summarize clipboard"),
         ("Ctrl+C", "Quit"),
     ]
@@ -95,7 +96,7 @@ def startup_banner() -> None:
 
     panel = Panel(
         table,
-        title="[bold white]VoicePaste[/bold white]",
+        title="[bold white]AIToys[/bold white]",
         border_style="cyan",
         padding=(1, 2),
     )

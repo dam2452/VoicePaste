@@ -28,7 +28,7 @@ class YtDlpDownloader:
             log.warn(f"Not a YouTube URL: [dim]{url}[/dim]")
             return None
 
-        temp_path = self._temp_dir / 'voicepaste_yt_audio.wav'
+        temp_path = self._temp_dir / 'aitoys_yt_audio.wav'
         try:
             if temp_path.exists():
                 temp_path.unlink()
@@ -77,7 +77,7 @@ class YtDlpDownloader:
             return None
 
     def cleanup(self) -> None:
-        temp_path = self._temp_dir / 'voicepaste_yt_audio.wav'
+        temp_path = self._temp_dir / 'aitoys_yt_audio.wav'
         try:
             if temp_path.exists():
                 temp_path.unlink()
