@@ -1,5 +1,7 @@
+<p align="center"><img src="logo.png" alt="AIToys logo" width="300" /></p>
+
 # 🎤 AIToys
-<img width="386" height="385" alt="logo" src="https://github.com/user-attachments/assets/ea7bd00f-d363-4f51-9146-c9e5712f0860" />
+
 
 Voice-to-text application with real-time transcription, TTS playback, and automatic clipboard integration.
 
@@ -29,26 +31,60 @@ Voice-to-text application with real-time transcription, TTS playback, and automa
 
 ### 🪟 Windows
 
-```bash
-# Check Python version (must be 3.12)
-python --version
+> Wymagany Python **3.14** (starsze 3.12 również działa, ale 3.14 jest obecnie domyślne).
+> FFmpeg musi być w PATH (`winget install ffmpeg`).
 
-# Install FFmpeg
+```bash
+# 1. Sprawdz Python
+python --version   # 3.14+
+
+# 2. Instalacja FFmpeg (jesli brak)
 winget install ffmpeg
 
-# Setup project
+# 3. Setup projektu
 git clone https://github.com/yourusername/AIToys.git
 cd AIToys
 python -m venv .venv
 .venv\Scripts\activate
 
-# Install dependencies (with CUDA for GPU)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# 4. PyTorch z CUDA — indeks zalezy od wersji Pythona:
+#    Python 3.14 -> cu130 (cu121 NIE ma wheeli dla 3.14!)
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu130
+#    Python 3.12 -> mozesz uzyc cu121:
+#    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# 5. Pozostale zaleznosci (m.in. faster-whisper, sounddevice,
+#    nvidia-cublas-cu12 + nvidia-cudnn-cu12 — DLL CUDA 12 dla ctranslate2)
 pip install -r requirements.txt
 
-# Run
+# 6. Konfiguracja
+copy .env.example .env
+
+# 7. Uruchom
 python main.py
 ```
+
+**Weryfikacja GPU po instalacji:**
+
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+# oczekiwane: 2.14.0+cu130 cuda: True
+```
+
+**Rozwiązywanie problemów (Windows):**
+
+- `Library cublas64_12.dll is not found` — nie zainstalowałeś `nvidia-cublas-cu12` /
+  `nvidia-cudnn-cu12` z requirements.txt, albo uruchamiasz moduły transkrypcji z
+  pominięciem `main.py` (bootstrap DLL jest w `main.py::_setup_cuda_dlls`).
+- YouTube: `Sign in to confirm you're not a bot` — narzędzie pobiera cookies z
+  Firefoksa (`YtDlpDownloader(cookies_from_browser="firefox")`). Musisz mieć
+  Firefoksa z otwartą sesją YouTube, albo zmień przeglądarkę w kodzie.
+- YouTube: puste formaty / `n challenge solving failed` — yt-dlp wymaga runtime JS
+  (Node.js ≥ 22 w PATH). `main.py` ustawia to automatycznie przez
+  `js_runtimes={'node': {}}`; przy ręcznym użyciu yt-dlp dodaj `--js-runtimes node`.
+- `.venv` po reinstalacji OS — jeśli venv wskazuje na nieistniejącego Pythona
+  (`No Python at '...\Python312\python.exe'`), usuń `.venv` i przejdź Quick Start
+  od punktu 3.
 
 ### 🐧 Linux
 

@@ -4,7 +4,7 @@ faster-whisper>=1.0.0
 google-genai>=0.8.0
 numpy>=1.24.0
 Pillow>=10.0.0
-PyAudio>=0.2.13
+sounddevice>=0.5.0
 pynput>=1.7.6
 pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'
 pyperclip>=1.8.2
@@ -19,3 +19,5 @@ scipy>=1.11.0
 torch>=2.5.0
 torchaudio>=2.5.0
 yt-dlp[default]>=2024.0.0
+nvidia-cublas-cu12>=12.6.0; sys_platform == 'win32'
+nvidia-cudnn-cu12>=9.10.0; sys_platform == 'win32'

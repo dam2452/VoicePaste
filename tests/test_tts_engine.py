@@ -2,7 +2,7 @@ import io
 import wave
 from unittest.mock import MagicMock, patch, mock_open
 
-from src.tts_engine import TTSEngine
+from src.infrastructure.ai.tts_engine import TTSEngine
 
 
 def _make_wav_bytes() -> bytes:
@@ -58,18 +58,10 @@ def test_tts_engine_speak_openai():
     mock_resp.content = wav_data
     mock_resp.raise_for_status = MagicMock()
 
-    mock_pa = MagicMock()
     mock_stream = MagicMock()
 
-    def fake_open(**kwargs):
-        mock_stream.write = MagicMock()
-        mock_stream.read.return_value = b''
-        return mock_stream
-
-    mock_pa.open.side_effect = fake_open
-
-    with patch("src.tts_engine.requests") as mock_requests, \
-         patch("src.tts_engine.pyaudio.PyAudio", return_value=mock_pa):
+    with patch("src.infrastructure.ai.tts_engine.requests") as mock_requests, \
+         patch("src.infrastructure.ai.tts_engine.sd.RawOutputStream", return_value=mock_stream):
 
         mock_requests.post.return_value = mock_resp
         e.speak("test text")
@@ -84,8 +76,5 @@ def test_tts_engine_speak_openai():
 
 def test_tts_engine_shutdown():
     e = TTSEngine()
-    mock_pa = MagicMock()
-    e._pyaudio = mock_pa
-    e.shutdown()
-    mock_pa.terminate.assert_called_once()
-    assert e._pyaudio is None
+    e.shutdown()  # nothing to crash on without pyaudio
+    assert e._stream is None

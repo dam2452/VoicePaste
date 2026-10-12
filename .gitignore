@@ -68,3 +68,4 @@ config.local.json
 .voicepaste_cache.json
 /.idea
 /.claude
+AGENTS.md

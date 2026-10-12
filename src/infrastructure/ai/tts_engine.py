@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Tuple
 
-import pyaudio
+import sounddevice as sd
 import requests
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
@@ -165,7 +165,6 @@ class TTSEngine:
         self._stop_event = threading.Event()
         self._playback_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
-        self._pyaudio: Optional[pyaudio.PyAudio] = None
         self._stream = None
 
     def set_backend(self, backend: TTSBackend) -> None:
@@ -220,9 +219,6 @@ class TTSEngine:
         if self._playback_thread and self._playback_thread.is_alive():
             self._playback_thread.join(timeout=3.0)
         self._close_stream()
-        if self._pyaudio:
-            self._pyaudio.terminate()
-            self._pyaudio = None
 
     def _speak_worker(self, text: str) -> None:
 
@@ -253,24 +249,18 @@ class TTSEngine:
             with self._lock:
                 self._is_speaking = False
 
-    def _get_pyaudio(self) -> pyaudio.PyAudio:
-        if not self._pyaudio:
-            self._pyaudio = pyaudio.PyAudio()
-        return self._pyaudio
-
     def _close_stream(self) -> None:
         if self._stream:
             try:
-                self._stream.stop_stream()
+                self._stream.stop()
                 self._stream.close()
             except Exception:  # pylint: disable=broad-exception-caught
                 pass
             self._stream = None
 
     def _play_file(self, path: str, delete_after: bool = False) -> None:
-        p = self._get_pyaudio()
         try:
-            self._stream_wav(p, path)
+            self._stream_wav(path)
         finally:
             self._close_stream()
             with self._lock:
@@ -281,15 +271,17 @@ class TTSEngine:
                 except OSError:
                     pass
 
-    def _stream_wav(self, p: pyaudio.PyAudio, path: str) -> None:
+    def _stream_wav(self, path: str) -> None:
         with wave.open(path, "rb") as wf:
             frames_per_chunk = int(wf.getframerate() * 0.1)
-            self._stream = p.open(
-                format=p.get_format_from_width(wf.getsampwidth()),
+            width = wf.getsampwidth()
+            dtype = {1: "int8", 2: "int16", 4: "int32"}.get(width, "int16")
+            self._stream = sd.RawOutputStream(
+                samplerate=wf.getframerate(),
                 channels=wf.getnchannels(),
-                rate=wf.getframerate(),
-                output=True,
+                dtype=dtype,
             )
+            self._stream.start()
             while not self._stop_event.is_set():
                 data = wf.readframes(frames_per_chunk)
                 if not data:

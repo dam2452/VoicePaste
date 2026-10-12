@@ -12,8 +12,9 @@ from src import log
 
 
 class YtDlpDownloader:
-    def __init__(self) -> None:
+    def __init__(self, cookies_from_browser: str = "firefox") -> None:
         self._temp_dir = Path(tempfile.gettempdir())
+        self._cookies_from_browser = cookies_from_browser
 
     @staticmethod
     def is_valid_url(url: str) -> bool:
@@ -41,7 +42,11 @@ class YtDlpDownloader:
             'outtmpl': str(temp_path.with_suffix('')),
             'quiet': True,
             'no_warnings': True,
+            # YouTube wymaga solvera n-challenge; domyślny runtime to deno, którego nie ma
+            'js_runtimes': {'node': {}},
         }
+        if self._cookies_from_browser:
+            ydl_opts['cookiesfrombrowser'] = (self._cookies_from_browser,)
 
         # pylint: disable=too-many-try-statements
         try:

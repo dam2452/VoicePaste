@@ -2,7 +2,7 @@ import threading
 from typing import Dict, Optional
 
 import numpy as np
-import pyaudio
+import sounddevice as sd
 from scipy import signal
 
 from src.core.dtos import AudioData
@@ -16,7 +16,6 @@ class AudioRecorder:
         self._audio_data = []
         self._stream = None
         self._lock = threading.Lock()
-        self._pyaudio = pyaudio.PyAudio()
         self._device_id = device_id if device_id is not None else self._find_input_device()
         self.device_sample_rate = self._get_device_sample_rate()
         log.audio_info(f"Native: {self.device_sample_rate} Hz -> Whisper: {self._target_sample_rate} Hz")
@@ -24,7 +23,7 @@ class AudioRecorder:
     def get_device_info(self) -> Optional[Dict]:
         try:
             if self._device_id is not None:
-                return self._pyaudio.get_device_info_by_index(self._device_id)
+                return sd.query_devices(self._device_id)
             return None
         except Exception:  # pylint: disable=broad-exception-caught
             return None
@@ -40,22 +39,20 @@ class AudioRecorder:
             raise RuntimeError("No input device found. Please check your microphone connection.")
 
         try:
-            self._stream = self._pyaudio.open(
-                format=pyaudio.paInt16,
+            self._stream = sd.RawInputStream(
+                samplerate=self.device_sample_rate,
+                blocksize=1024,
+                dtype="int16",
                 channels=1,
-                rate=self.device_sample_rate,
-                input=True,
-                input_device_index=self._device_id,
-                frames_per_buffer=1024,
-                stream_callback=self._audio_callback,
+                device=self._device_id,
+                callback=self._audio_callback,
             )
-            self._stream.start_stream()
+            self._stream.start()
         except Exception as e:
             self._is_recording = False
             log.error("Failed to start recording. Available devices:")
-            for i in range(self._pyaudio.get_device_count()):
-                info = self._pyaudio.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
+            for i, info in enumerate(sd.query_devices()):
+                if info['max_input_channels'] > 0:
                     log.audio_info(f"  [{i}] {info['name']}")
             raise RuntimeError(f"Failed to start audio recording: {e}") from e
 
@@ -66,8 +63,9 @@ class AudioRecorder:
             self._is_recording = False
 
         if self._stream:
-            self._stream.stop_stream()
+            self._stream.stop()
             self._stream.close()
+            self._stream = None
 
         if not self._audio_data:
             return None
@@ -81,18 +79,18 @@ class AudioRecorder:
 
         return AudioData(data=audio_float, sample_rate=self._target_sample_rate, source_name="microphone")
 
-    def _audio_callback(self, in_data, frame_count, time_info, status):  # pylint: disable=unused-argument
+    def _audio_callback(self, indata, frames, time_info, status):  # pylint: disable=unused-argument
+        if status:
+            log.audio_info(f"Recording status: {status}")
         if self._is_recording:
-            self._audio_data.append(in_data)
-        return in_data, pyaudio.paContinue
+            self._audio_data.append(bytes(indata))
 
     def _find_input_device(self) -> Optional[int]:
         # pylint: disable=too-many-try-statements
         try:
             first_input = None
-            for i in range(self._pyaudio.get_device_count()):
-                info = self._pyaudio.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
+            for i, info in enumerate(sd.query_devices()):
+                if info['max_input_channels'] > 0:
                     if first_input is None:
                         first_input = i
                     name = info['name']
@@ -100,7 +98,7 @@ class AudioRecorder:
                         log.audio_info(f"Auto-detected NVIDIA Broadcast: {name}")
                         return i
             if first_input is not None:
-                log.audio_info(f"Auto-detected input device: {self._pyaudio.get_device_info_by_index(first_input)['name']}")
+                log.audio_info(f"Auto-detected input device: {sd.query_devices(first_input)['name']}")
             return first_input
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"Error finding input device: {e}")
@@ -110,10 +108,6 @@ class AudioRecorder:
         if self._device_id is None:
             return self._target_sample_rate
         try:
-            return int(self._pyaudio.get_device_info_by_index(self._device_id)['defaultSampleRate'])
+            return int(sd.query_devices(self._device_id)['default_samplerate'])
         except Exception:  # pylint: disable=broad-exception-caught
             return 48000
-
-    def __del__(self):
-        if hasattr(self, '_pyaudio'):
-            self._pyaudio.terminate()

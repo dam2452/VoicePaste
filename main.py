@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import os
 import sys
 import threading
 from typing import (
@@ -8,9 +9,31 @@ from typing import (
     Optional,
 )
 
-import pyaudio
+import sounddevice as sd
 
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
+
+def _setup_cuda_dlls() -> None:
+    """ctranslate2 (faster-whisper) potrzebuje cuBLAS/cuDNN 12 DLL.
+
+    Pakiety nvidia-cublas-cu12 / nvidia-cudnn-cu12 (pip) instalują je w
+    site-packages/nvidia/<pakiet>/bin — ten katalog musi być widoczny dla
+    loadera Windows, zanim ctranslate2 załaduje biblioteki.
+    """
+    try:
+        import nvidia  # noqa: F401  pylint: disable=import-outside-toplevel
+    except ImportError:
+        return
+    base = Path(nvidia.__file__).parent
+    for pkg in base.iterdir():
+        bin_dir = pkg / 'bin'
+        if bin_dir.is_dir():
+            os.environ['PATH'] = str(bin_dir) + os.pathsep + os.environ.get('PATH', '')
+            os.add_dll_directory(str(bin_dir))
+
+
+_setup_cuda_dlls()
 
 from src import log
 from src.application.services.cache_manager import TranscriptionCacheManager
@@ -125,16 +148,13 @@ def _cache_to_history(cache: TranscriptionCacheManager) -> List[Dict]:
 
 def list_devices() -> None:
     from rich.table import Table  # pylint: disable=import-outside-toplevel
-    p = pyaudio.PyAudio()
     table = Table(title="Dostepne urzadzenia wejsciowe audio", border_style="cyan")
     table.add_column("ID", style="bold cyan", justify="right")
     table.add_column("Nazwa", style="white")
     table.add_column("Kanaly", style="dim", justify="right")
-    for i in range(p.get_device_count()):
-        info = p.get_device_info_by_index(i)
-        if info['maxInputChannels'] > 0:
-            table.add_row(str(i), info['name'], str(info['maxInputChannels']))
-    p.terminate()
+    for i, info in enumerate(sd.query_devices()):
+        if info['max_input_channels'] > 0:
+            table.add_row(str(i), info['name'], str(info['max_input_channels']))
     log.console.print(table)
 
 
@@ -160,7 +180,7 @@ def main() -> None:
         keep_model_loaded=args.keep_model_loaded,
         gpu_profile=args.gpu_profile,
     )
-    yt_downloader = YtDlpDownloader()
+    yt_downloader = YtDlpDownloader(cookies_from_browser=env_get("YT_COOKIES_BROWSER", "firefox"))
     file_processor = LocalFileProcessor()
 
     tts_engine = TTSEngine()

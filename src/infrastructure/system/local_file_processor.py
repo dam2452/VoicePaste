@@ -48,7 +48,8 @@ class LocalFileProcessor:
                 result = subprocess.run(
                     ['ffmpeg', '-i', str(file_path), '-vn', '-acodec', 'pcm_s16le',
                      '-ar', '16000', '-ac', '1', '-y', str(temp_wav)],
-                    capture_output=True, text=True, timeout=300, check=False,
+                    capture_output=True, text=True, encoding='utf-8', errors='replace',
+                    timeout=300, check=False,
                 )
                 if result.returncode != 0:
                     log.error(f"FFmpeg error: {result.stderr[:200]}")

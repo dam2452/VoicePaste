@@ -21,12 +21,29 @@ def is_excluded(path: Path, exclude_dirs: set[str]) -> bool:
     return any(part in exclude_dirs for part in path.parts)
 
 
+def _iter_source_files(root: Path, extensions: Set[str], exclude_dirs: Set[str]) -> List[Path]:
+    matched: List[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        for filename in filenames:
+            if os.path.splitext(filename)[1].lower() in extensions:
+                candidate = Path(dirpath) / filename
+                try:
+                    if candidate.is_file():
+                        matched.append(candidate)
+                except OSError:
+                    continue
+    return matched
+
+
 def read_file_safe(file_path: Path) -> Optional[str]:
     for encoding in ('utf-8', 'utf-8-sig', 'latin-1'):
         try:
             return file_path.read_text(encoding=encoding)
         except (UnicodeDecodeError, LookupError):
             continue
+        except OSError:
+            return None
     return None
 
 
@@ -59,7 +76,13 @@ def concatenate_specific_files(
         except ValueError:
             relative_path = file_path.name
 
-        if file_path.stat().st_size > max_size_bytes:
+        try:
+            file_size = file_path.stat().st_size
+        except OSError as e:
+            skipped_files.append(f"{relative_path} (not accessible: {e.strerror or e})")
+            continue
+
+        if file_size > max_size_bytes:
             skipped_files.append(f"{relative_path} (too large)")
             continue
 
@@ -112,13 +135,7 @@ def concatenate_files(
     excluded = DEFAULT_EXCLUDE_DIRS | set(exclude_dirs or [])
     max_size_bytes = max_file_size_kb * 1024
 
-    collected_files: list[Path] = []
-    for ext in normalized_extensions:
-        pattern = f'**/*{ext}'
-        for file_path in root.glob(pattern):
-            if file_path.is_file() and not is_excluded(file_path.relative_to(root), excluded):
-                collected_files.append(file_path)
-
+    collected_files = _iter_source_files(root, normalized_extensions, excluded)
     collected_files = sorted(set(collected_files), key=lambda p: str(p.relative_to(root)).lower())
 
     output_parts: list[str] = []
@@ -128,7 +145,13 @@ def concatenate_files(
     for file_path in collected_files:
         relative_path = file_path.relative_to(root)
 
-        if file_path.stat().st_size > max_size_bytes:
+        try:
+            file_size = file_path.stat().st_size
+        except OSError as e:
+            skipped_files.append(f"{relative_path} (not accessible: {e.strerror or e})")
+            continue
+
+        if file_size > max_size_bytes:
             skipped_files.append(f"{relative_path} (too large)")
             continue
 
